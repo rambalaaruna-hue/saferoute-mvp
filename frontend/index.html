@@ -1,52 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>SafeRoute MVP</title>
+  <!-- Google Font & Material Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; padding: 16px; }
-    input, button, textarea { padding: 8px; margin: 6px 0; width: 100%; }
-    button { cursor: pointer; }
-    .box { border: 1px solid #ccc; padding: 12px; margin-top: 10px; }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: #f7f8fa;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      color: #1976d2;
+    }
+    p.description {
+      text-align: center;
+      color: #555;
+      margin-bottom: 30px;
+    }
+    input, textarea {
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.3s;
+      margin-bottom: 20px;
+    }
+    button:hover {
+      background-color: #1565c0;
+    }
+    .card {
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      padding: 16px;
+      margin-bottom: 20px;
+    }
     #map {
       height: 300px;
-      background: #f2f2f2;
+      border-radius: 12px;
+      background-color: #e0e0e0;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #777;
+      color: #555;
+      font-style: italic;
       font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .material-icons {
+      vertical-align: middle;
+      color: #f44336; /* red for warning icon */
+      margin-right: 6px;
     }
   </style>
 </head>
 <body>
+  <div class="container">
+    <h2>SafeRoute – Night Travel Safety</h2>
+    <p class="description">Check how safe your travel route is before heading out.</p>
 
-<h2>SafeRoute – Night Travel Safety for Women</h2>
-<p>Check how safe your travel route is before heading out.</p>
+    <!-- Input Section -->
+    <input type="text" placeholder="Enter starting location">
+    <input type="text" placeholder="Enter destination">
+    <button>Check Safe Route</button>
 
-<input placeholder="Enter starting location" />
-<input placeholder="Enter destination" />
-<button>Check Safe Route</button>
+    <!-- Map Placeholder -->
+    <div id="map">
+      Map will appear here once Google Maps API is connected
+    </div>
 
-<div id="map">
-  Map will appear here once Google Maps API is connected
-</div>
+    <!-- Safety Level Card -->
+    <div class="card">
+      <h3>Safety Level</h3>
+      <p id="safety-level"><span class="material-icons">warning</span> —</p>
+    </div>
 
-<div class="box">
-  <strong>Safety Level:</strong>
-  <p>—</p>
-</div>
+    <!-- AI Explanation Card -->
+    <div class="card">
+      <h3>AI Safety Explanation</h3>
+      <p id="ai-explanation">—</p>
+    </div>
 
-<div class="box">
-  <strong>AI Safety Explanation:</strong>
-  <p>—</p>
-</div>
-
-<div class="box">
-  <strong>Report an Incident</strong><br/>
-  <textarea rows="3" placeholder="Describe the issue..."></textarea>
-  <button>Submit Report</button>
-</div>
-
+    <!-- Incident Reporting Card -->
+    <div class="card">
+      <h3>Report an Incident</h3>
+      <textarea rows="3" placeholder="Describe the issue..."></textarea>
+      <button>Submit Report</button>
+    </div>
+  </div>
 </body>
 </html>
-
