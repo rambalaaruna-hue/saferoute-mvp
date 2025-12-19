@@ -1,1 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SafeRoute MVP</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px; }
+    input, button, textarea { padding: 8px; margin: 6px 0; width: 100%; }
+    button { cursor: pointer; }
+    .box { border: 1px solid #ccc; padding: 12px; margin-top: 10px; }
+    #map {
+      height: 300px;
+      background: #f2f2f2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #777;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>SafeRoute – Night Travel Safety for Women</h2>
+<p>Check how safe your travel route is before heading out.</p>
+
+<input placeholder="Enter starting location" />
+<input placeholder="Enter destination" />
+<button>Check Safe Route</button>
+
+<div id="map">
+  Map will appear here once Google Maps API is connected
+</div>
+
+<div class="box">
+  <strong>Safety Level:</strong>
+  <p>—</p>
+</div>
+
+<div class="box">
+  <strong>AI Safety Explanation:</strong>
+  <p>—</p>
+</div>
+
+<div class="box">
+  <strong>Report an Incident</strong><br/>
+  <textarea rows="3" placeholder="Describe the issue..."></textarea>
+  <button>Submit Report</button>
+</div>
+
+</body>
+</html>
 
