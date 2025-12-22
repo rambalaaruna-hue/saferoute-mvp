@@ -16,8 +16,8 @@
         </header>
 
         <div class="controls">
-            <input type="text" id="start-input" placeholder="Start Location">
-            <input type="text" id="end-input" placeholder="Destination">
+            <input type="text" id="start-input" placeholder="Enter starting point">
+            <input type="text" id="end-input" placeholder="Enter destination">
             <button id="find-route-btn">Find Safe Route</button>
         </div>
 
@@ -34,14 +34,18 @@
 
     <div id="report-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>Report Incident</h3>
+            <h3>Report Safety Issue</h3>
+            <p>What is the concern at this location?</p>
             <select id="issue-type">
-                <option value="poor_lighting">Poor Lighting</option>
-                <option value="harassment">Harassment / Catcalling</option>
-                <option value="deserted">Deserted Area</option>
+                <option value="poor_lighting">💡 Poor Lighting</option>
+                <option value="harassment">⚠️ Harassment / Catcalling</option>
+                <option value="deserted">👣 Deserted / Isolated Area</option>
+                <option value="blocked">🚫 Path Blocked / Under Construction</option>
             </select>
-            <button id="submit-report">Submit</button>
-            <button id="close-modal">Cancel</button>
+            <div class="modal-buttons">
+                <button id="submit-report">Submit Report</button>
+                <button id="close-modal">Cancel</button>
+            </div>
         </div>
     </div>
 
