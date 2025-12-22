@@ -13,7 +13,6 @@ export interface SafetyAnalysis {
 class GeminiService {
   private genAI: GoogleGenerativeAI | null = null;
   private model: any = null;
-  private isInitialized = false;
 
   constructor() {
     try {
@@ -24,7 +23,6 @@ class GeminiService {
         
         this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
-        this.isInitialized = true;
         
         console.log('✅ Gemini API initialized successfully');
       } else {
@@ -36,7 +34,7 @@ class GeminiService {
       console.error('❌ Error initializing Gemini API:', error);
       this.genAI = null;
       this.model = null;
-      this.isInitialized = false;
+
     }
   }
 
@@ -213,7 +211,7 @@ Keep the tone calm, reassuring, and informative. Focus on facts, not fear. Be ho
     }
   }
 
-  private getFallbackAnalysis(route: RouteData, routeIndex: number): SafetyAnalysis {
+  private getFallbackAnalysis(_route: RouteData, routeIndex: number): SafetyAnalysis {
     const analyses = [
       {
         description: 'This route maintains higher foot traffic after 9 PM, avoids poorly lit streets, and passes open commercial zones. Community feedback indicates higher perceived safety in this area during night hours.',
