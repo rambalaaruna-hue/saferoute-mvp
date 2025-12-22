@@ -16,8 +16,14 @@ class GeminiService {
 
   constructor() {
     if (GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here') {
+      console.log('🤖 Gemini API configured');
+      console.log('📏 Key length:', GEMINI_API_KEY.length, '(should be 39)');
+      console.log('✓ Key format valid:', GEMINI_API_KEY.startsWith('AIza'));
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    } else {
+      console.warn('⚠️ Gemini API not configured - using fallback analysis');
+      console.warn('Set VITE_GEMINI_API_KEY in .env for AI-powered safety analysis');
     }
   }
 
@@ -99,6 +105,27 @@ Keep the tone calm, reassuring, and informative. Focus on facts, not fear. Be ho
 
   private parseAnalysisResponse(text: string, route: RouteData): SafetyAnalysis {
     try {
+      console.log('📝 Gemini raw response (first 200 chars):', text.substring(0, 200) + '...');
+      
+      // Try to parse as JSON first (in case Gemini returns JSON)
+      if (text.trim().startsWith('{')) {
+        try {
+          const json = JSON.parse(text);
+          if (json.description && json.safetyScore) {
+            console.log('✓ Parsed as JSON format');
+            return {
+              description: json.description,
+              highlights: json.highlights || [],
+              safetyScore: Math.max(50, Math.min(95, json.safetyScore)),
+              recommendations: json.recommendations || []
+            };
+          }
+        } catch (jsonError) {
+          console.log('ℹ️ Not JSON format, parsing as structured text');
+        }
+      }
+      
+      // Parse as structured text (existing implementation)
       // Extract description
       const descMatch = text.match(/DESCRIPTION:\s*(.+?)(?=HIGHLIGHTS:|$)/s);
       const description = descMatch 
@@ -141,6 +168,8 @@ Keep the tone calm, reassuring, and informative. Focus on facts, not fear. Be ho
             'Keep your phone charged and accessible'
           ];
 
+      console.log('✓ Parsed structured text format - Score:', safetyScore);
+
       return {
         description,
         highlights: highlights.slice(0, 5),
@@ -148,7 +177,7 @@ Keep the tone calm, reassuring, and informative. Focus on facts, not fear. Be ho
         recommendations: recommendations.slice(0, 3)
       };
     } catch (error) {
-      console.error('Error parsing Gemini response:', error);
+      console.error('❌ Error parsing Gemini response:', error);
       return this.getFallbackAnalysis(route, 0);
     }
   }

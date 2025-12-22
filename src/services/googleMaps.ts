@@ -63,7 +63,9 @@ function loadGoogleMapsScript(): Promise<void> {
       return;
     }
 
-    console.log('Loading Google Maps with API key:', GOOGLE_MAPS_API_KEY.substring(0, 10) + '...');
+    console.log('🗺️ Loading Google Maps with API key:', GOOGLE_MAPS_API_KEY.substring(0, 10) + '...');
+    console.log('📏 Key length:', GOOGLE_MAPS_API_KEY.length, '(should be 39)');
+    console.log('✓ Key format valid:', GOOGLE_MAPS_API_KEY.startsWith('AIza'));
 
     // Check if script is already being loaded
     const existingScript = document.querySelector(

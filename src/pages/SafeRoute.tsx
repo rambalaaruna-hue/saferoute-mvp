@@ -147,6 +147,12 @@ export default function SafeRoute() {
           summary: route.name
         }));
       } else {
+        // Ensure map is initialized before fetching routes
+        if (!mapInitialized) {
+          console.log('🗺️ Map not initialized, initializing now...');
+          await initializeMap();
+        }
+        
         // Fetch routes from Google Maps
         fetchedRoutes = await googleMapsService.getRoutes(
           startLocation,
@@ -161,31 +167,42 @@ export default function SafeRoute() {
 
       setRoutes(fetchedRoutes);
 
-      // Analyze routes with Gemini AI
+      // Analyze routes with Gemini AI (runs AFTER routes are fetched)
       toast({
         title: 'Routes Found',
         description: 'Analyzing route safety with AI...'
       });
 
-      const analyses = await geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime);
-      setSafetyAnalyses(analyses);
+      // Gemini analysis runs independently and won't block the UI
+      try {
+        const analyses = await geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime);
+        setSafetyAnalyses(analyses);
 
-      // Update routes with AI-enhanced safety scores
-      const updatedRoutes = fetchedRoutes.map(route => {
-        const analysis = analyses.get(route.id);
-        if (analysis) {
-          return { ...route, safetyScore: analysis.safetyScore };
-        }
-        return route;
-      });
+        // Update routes with AI-enhanced safety scores
+        const updatedRoutes = fetchedRoutes.map(route => {
+          const analysis = analyses.get(route.id);
+          if (analysis) {
+            return { ...route, safetyScore: analysis.safetyScore };
+          }
+          return route;
+        });
 
-      setRoutes(updatedRoutes);
-      setSelectedRoute(updatedRoutes[0]);
+        setRoutes(updatedRoutes);
+        setSelectedRoute(updatedRoutes[0]);
 
-      toast({
-        title: 'Analysis Complete',
-        description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} with safety analysis`,
-      });
+        toast({
+          title: 'Analysis Complete',
+          description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} with AI safety analysis`,
+        });
+      } catch (geminiError) {
+        console.error('❌ Gemini analysis failed, using default scores:', geminiError);
+        // Routes are already set, just show them without AI enhancement
+        setSelectedRoute(fetchedRoutes[0]);
+        toast({
+          title: 'Routes Found',
+          description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} (AI analysis unavailable)`,
+        });
+      }
 
     } catch (error) {
       console.error('Error finding routes:', error);
