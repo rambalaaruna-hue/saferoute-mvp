@@ -26,12 +26,18 @@ export interface Location {
 declare global {
   interface Window {
     google: typeof google;
+    __googleMapsScriptLoading?: Promise<void>;
   }
 }
 
 // Load Google Maps script dynamically
 function loadGoogleMapsScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
+  // Return existing promise if script is already being loaded
+  if (window.__googleMapsScriptLoading) {
+    return window.__googleMapsScriptLoading;
+  }
+
+  const promise = new Promise<void>((resolve, reject) => {
     // Check if Google Maps is already loaded
     if (window.google && window.google.maps) {
       resolve();
@@ -41,13 +47,26 @@ function loadGoogleMapsScript(): Promise<void> {
     // Check if script is already being loaded
     const existingScript = document.querySelector(
       `script[src*="maps.googleapis.com/maps/api/js"]`
-    );
+    ) as HTMLScriptElement;
     
     if (existingScript) {
-      existingScript.addEventListener('load', () => resolve());
-      existingScript.addEventListener('error', () => 
-        reject(new Error('Failed to load Google Maps script'))
-      );
+      // Script exists, wait for it to load
+      if (window.google && window.google.maps) {
+        resolve();
+      } else {
+        const onLoad = () => {
+          existingScript.removeEventListener('load', onLoad);
+          existingScript.removeEventListener('error', onError);
+          resolve();
+        };
+        const onError = () => {
+          existingScript.removeEventListener('load', onLoad);
+          existingScript.removeEventListener('error', onError);
+          reject(new Error('Failed to load Google Maps script'));
+        };
+        existingScript.addEventListener('load', onLoad);
+        existingScript.addEventListener('error', onError);
+      }
       return;
     }
 
@@ -56,10 +75,33 @@ function loadGoogleMapsScript(): Promise<void> {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    
+    const onLoad = () => {
+      script.removeEventListener('load', onLoad);
+      script.removeEventListener('error', onError);
+      resolve();
+    };
+    
+    const onError = () => {
+      script.removeEventListener('load', onLoad);
+      script.removeEventListener('error', onError);
+      reject(new Error('Failed to load Google Maps script'));
+    };
+    
+    script.addEventListener('load', onLoad);
+    script.addEventListener('error', onError);
     document.head.appendChild(script);
   });
+
+  // Store the promise globally to prevent duplicate loading
+  window.__googleMapsScriptLoading = promise;
+  
+  // Clean up the promise after it resolves or rejects
+  promise.finally(() => {
+    delete window.__googleMapsScriptLoading;
+  });
+
+  return promise;
 }
 
 class GoogleMapsService {

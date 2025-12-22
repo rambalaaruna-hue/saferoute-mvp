@@ -31,10 +31,21 @@ export default function SafeRoute() {
 
   // Initialize map when component mounts
   useEffect(() => {
-    if (mapContainerRef.current && !mapInitialized) {
-      initializeMap();
-    }
-  }, [mapInitialized]);
+    let mounted = true;
+    
+    const init = async () => {
+      if (mapContainerRef.current && !mapInitialized && mounted) {
+        await initializeMap();
+      }
+    };
+    
+    init();
+    
+    // Cleanup function - but don't remove the map or script
+    return () => {
+      mounted = false;
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   const initializeMap = async () => {
     if (!mapContainerRef.current) return;
@@ -319,19 +330,21 @@ export default function SafeRoute() {
           {/* Right Panel - Map View */}
           <Card className="bg-card border-border">
             <CardContent className="p-0">
-              <div 
-                ref={mapContainerRef}
-                className="w-full h-[400px] xl:h-[500px] rounded-lg overflow-hidden"
-                style={{ minHeight: '400px' }}
-              >
+              <div className="relative w-full h-[400px] xl:h-[500px] rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+                {/* Loading overlay - positioned absolutely so it doesn't interfere with map */}
                 {!mapInitialized && (
-                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                  <div className="absolute inset-0 bg-muted flex items-center justify-center z-10">
                     <div className="text-center space-y-2">
                       <Loader2 className="w-12 h-12 xl:w-16 xl:h-16 text-primary mx-auto animate-spin" />
                       <p className="text-muted-foreground text-sm xl:text-base">Loading map...</p>
                     </div>
                   </div>
                 )}
+                {/* Map container - always rendered */}
+                <div 
+                  ref={mapContainerRef}
+                  className="w-full h-full"
+                />
               </div>
             </CardContent>
           </Card>

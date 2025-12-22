@@ -42,6 +42,9 @@
 - Dynamic script loading for Google Maps (no external loader library needed)
 - All services properly typed with TypeScript
 - Removed @googlemaps/js-api-loader dependency (using native script loading)
+- Fixed React DOM removeChild error by separating map container from loading overlay
+- Improved useEffect to prevent re-initialization loops
+- Enhanced script loading with proper event listener cleanup
 
 ## How to Add Gemini API Key
 1. Get your Gemini API key from https://makersuite.google.com/app/apikey
