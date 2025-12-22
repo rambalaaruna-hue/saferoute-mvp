@@ -96,7 +96,8 @@ function loadGoogleMapsScript(): Promise<void> {
 
     // Create and load the script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry,directions&callback=initGoogleMaps`;
+    // Note: "directions" is not a library, it's part of the Maps service
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initGoogleMaps`;
     script.async = true;
     script.defer = true;
     script.referrerPolicy = 'no-referrer-when-downgrade';
@@ -117,11 +118,10 @@ function loadGoogleMapsScript(): Promise<void> {
       console.error('1. Check if API key is valid');
       console.error('2. Go to Google Cloud Console and enable:');
       console.error('   - Maps JavaScript API');
-      console.error('   - Directions API');
       console.error('   - Geocoding API');
       console.error('   - Places API');
-      console.error('3. Check if billing is enabled');
-      console.error('4. For localhost development: Allow all domains or add localhost:5173');
+      console.error('3. **IMPORTANT**: Enable Billing on your project!');
+      console.error('4. Check if domain is authorized (or allow all domains)');
       console.error('5. Current URL:', window.location.href);
       reject(new Error('Failed to load Google Maps script'));
     };

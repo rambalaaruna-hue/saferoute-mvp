@@ -229,14 +229,19 @@ export default function SafeRoute() {
       console.error('🔍 Full error details:', errorMessage);
       
       // If it's a Google Maps API error, switch to demo mode
-      if (errorMessage.includes('Google Maps') || errorMessage.includes('maps') || !mapInitialized) {
+      if (errorMessage.includes('Google Maps') || errorMessage.includes('maps') || errorMessage.includes('Billing') || !mapInitialized) {
         console.log('📱 Switching to Demo Mode due to API error...');
         setUseDemoMode(true);
         setMapInitialized(true);
         
+        let demoMessage = 'Google Maps unavailable. Showing demo mode with mock routes.';
+        if (errorMessage.includes('Billing') || errorMessage.toLowerCase().includes('billing')) {
+          demoMessage = '⚠️ BILLING NOT ENABLED: Enable billing in Google Cloud Console. Using demo mode for now.';
+        }
+        
         toast({
           title: 'Using Demo Mode',
-          description: 'Google Maps unavailable. Showing demo mode with mock routes.',
+          description: demoMessage,
           variant: 'default'
         });
         
