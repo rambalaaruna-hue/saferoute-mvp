@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
@@ -19,8 +18,9 @@ export function MockMap({ routes = [], selectedRoute }: MockMapProps) {
     if (!ctx) return;
 
     // Set canvas size
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
 
     // Draw background (dark theme)
     ctx.fillStyle = '#12263A';
@@ -67,12 +67,8 @@ export function MockMap({ routes = [], selectedRoute }: MockMapProps) {
         ctx.moveTo(startX, startY);
         
         const controlY = startY + (index - 1) * 80;
-        ctx.quadraticCurveTo(
-          canvas.width * 0.5,
-          controlY,
-          endX,
-          endY
-        );
+        const controlX = canvas.width * 0.5;
+        ctx.quadraticCurveTo(controlX, controlY, endX, endY);
         
         ctx.stroke();
         ctx.globalAlpha = 1;
@@ -110,7 +106,7 @@ export function MockMap({ routes = [], selectedRoute }: MockMapProps) {
         <AlertCircle className="h-4 w-4" />
         <AlertDescription className="text-yellow-100">
           <strong>Demo Mode:</strong> Using mock map. Set up Google Maps API key for full functionality.
-          <a href="/simple-test.html" className="underline ml-2" target="_blank">
+          <a href="/simple-test.html" className="underline ml-2" target="_blank" rel="noopener noreferrer">
             Test API Key
           </a>
         </AlertDescription>
