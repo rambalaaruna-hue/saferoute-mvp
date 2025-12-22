@@ -53,14 +53,29 @@ export default function SafeRoute() {
   }, [useDemoMode]); // Re-run if demo mode changes
 
   const initializeMap = async () => {
-    if (!mapContainerRef.current) return;
+    if (!mapContainerRef.current) {
+      console.error('❌ Map container not found');
+      throw new Error('Map container not found in DOM');
+    }
+
+    console.log('🗺️ Map container found, size:', {
+      width: mapContainerRef.current.offsetWidth,
+      height: mapContainerRef.current.offsetHeight
+    });
+
+    if (mapContainerRef.current.offsetWidth === 0 || mapContainerRef.current.offsetHeight === 0) {
+      console.error('❌ Map container has zero dimensions');
+      throw new Error('Map container has invalid dimensions');
+    }
 
     try {
+      console.log('⏳ Calling googleMapsService.initMap...');
       await googleMapsService.initMap(mapContainerRef.current);
+      console.log('✅ googleMapsService.initMap completed');
       setMapInitialized(true);
       setUseDemoMode(false);
     } catch (error) {
-      console.error('Error initializing map:', error);
+      console.error('❌ Error initializing map:', error);
       
       // Automatically switch to demo mode
       setUseDemoMode(true);
@@ -68,7 +83,7 @@ export default function SafeRoute() {
       
       toast({
         title: 'Demo Mode Activated',
-        description: 'Using mock map for demonstration. Set up Google Maps API key for full functionality.',
+        description: 'Using mock map for demonstration. Check your Google Maps API key setup.',
         variant: 'default'
       });
     }
@@ -208,12 +223,64 @@ export default function SafeRoute() {
         });
 
     } catch (error) {
-      console.error('Error finding routes:', error);
-      toast({
-        title: 'Route Error',
-        description: error instanceof Error ? error.message : 'Failed to find routes. Please check your addresses.',
-        variant: 'destructive'
-      });
+      console.error('❌ Error finding routes:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('🔍 Full error details:', errorMessage);
+      
+      // If it's a Google Maps API error, switch to demo mode
+      if (errorMessage.includes('Google Maps') || errorMessage.includes('maps') || !mapInitialized) {
+        console.log('📱 Switching to Demo Mode due to API error...');
+        setUseDemoMode(true);
+        setMapInitialized(true);
+        
+        toast({
+          title: 'Using Demo Mode',
+          description: 'Google Maps unavailable. Showing demo mode with mock routes.',
+          variant: 'default'
+        });
+        
+        // Retry with demo mode
+        try {
+          const mockRoutes = await mockGoogleMapsService.calculateRoutes(startLocation, destination);
+          const fetchedRoutes = mockRoutes.map((route: MockRouteData, index: number) => ({
+            id: route.id,
+            name: route.name,
+            distance: route.distance,
+            duration: route.duration,
+            safetyScore: route.safetyScore,
+            polyline: route.polyline,
+            steps: route.steps as any,
+            type: (index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest') as 'safe' | 'balanced' | 'fastest',
+            color: route.safetyScore >= 85 ? '#2EC4B6' : route.safetyScore >= 70 ? '#F4D35E' : '#999999',
+            legs: [],
+            warnings: [],
+            summary: route.name
+          }));
+          
+          setRoutes(fetchedRoutes);
+          setSelectedRoute(fetchedRoutes[0]);
+          
+          toast({
+            title: 'Routes Found (Demo Mode)',
+            description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''}`,
+            variant: 'default'
+          });
+        } catch (demoError) {
+          console.error('❌ Demo mode also failed:', demoError);
+          toast({
+            title: 'Route Error',
+            description: 'Failed to find routes. Please check your input and try again.',
+            variant: 'destructive'
+          });
+        }
+      } else {
+        toast({
+          title: 'Route Error',
+          description: errorMessage || 'Failed to find routes. Please try again.',
+          variant: 'destructive'
+        });
+      }
     } finally {
       setIsLoadingRoutes(false);
     }

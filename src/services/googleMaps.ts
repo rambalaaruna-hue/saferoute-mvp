@@ -155,13 +155,34 @@ class GoogleMapsService {
   }
 
   async initMap(mapElement: HTMLElement, center?: { lat: number; lng: number }): Promise<google.maps.Map> {
+    console.log('🗺️ initMap called with element:', mapElement?.id);
+    
+    // Validate map element
+    if (!mapElement) {
+      throw new Error('Map element is not provided');
+    }
+
+    if (!mapElement.offsetParent && mapElement.offsetWidth === 0) {
+      console.warn('⚠️ Map container might be hidden or has no size');
+    }
+    
+    console.log('⏳ Ensuring Google Maps script is loaded...');
     await this.ensureLoaded();
+    
+    // Verify Google Maps is available
+    if (!window.google || !window.google.maps) {
+      const error = new Error('Google Maps API not available after loading script');
+      console.error('❌ ' + error.message);
+      throw error;
+    }
     
     // If map is already initialized, return it
     if (this.map) {
+      console.log('✓ Map already initialized, returning existing instance');
       return this.map;
     }
     
+    console.log('🚀 Creating new Google Maps instance...');
     this.map = new google.maps.Map(mapElement, {
       center: center || { lat: 40.7128, lng: -74.0060 }, // Default to NYC
       zoom: 13,
@@ -206,6 +227,9 @@ class GoogleMapsService {
 
     this.directionsService = new google.maps.DirectionsService();
     
+    console.log('✅ Map initialized successfully');
+    console.log('📍 Map center:', center || { lat: 40.7128, lng: -74.0060 });
+    
     return this.map;
   }
 
@@ -234,10 +258,16 @@ class GoogleMapsService {
     destination: string,
     travelTime?: string
   ): Promise<RouteData[]> {
+    console.log('🛣️ Getting routes from:', origin, 'to:', destination);
+    
     await this.ensureLoaded();
     
     if (!this.directionsService) {
-      throw new Error('Directions service not initialized');
+      throw new Error('Directions service not initialized. Please ensure Google Maps API is loaded.');
+    }
+
+    if (!this.map) {
+      throw new Error('Map not initialized. Please initialize the map first.');
     }
 
     // Clear previous route renderers
@@ -255,70 +285,103 @@ class GoogleMapsService {
       unitSystem: google.maps.UnitSystem.METRIC
     };
 
+    console.log('📡 Sending directions request to Google Maps API...');
+    
     return new Promise((resolve, reject) => {
       this.directionsService!.route(request, (result, status) => {
+        console.log('📨 Directions API response status:', status);
+        
         if (status === 'OK' && result) {
+          console.log('✅ Directions API returned', result.routes.length, 'routes');
           const routesData = result.routes.slice(0, 3); // Get up to 3 routes
 
-          routesData.forEach((route, index) => {
-            const leg = route.legs[0];
-            const distance = leg.distance?.text || 'N/A';
-            const duration = leg.duration?.text || 'N/A';
+          try {
+            routesData.forEach((route, index) => {
+              const leg = route.legs[0];
+              const distance = leg.distance?.text || 'N/A';
+              const duration = leg.duration?.text || 'N/A';
 
-            // Calculate a base safety score (will be enhanced by Gemini AI)
-            const safetyScore = this.calculateBaseSafetyScore(route, index);
+              // Calculate a base safety score (will be enhanced by Gemini AI)
+              const safetyScore = this.calculateBaseSafetyScore(route, index);
 
-            const routeData: RouteData = {
-              id: `route-${index}`,
-              name: index === 0 ? 'Safest Route' : index === 1 ? 'Balanced Route' : 'Fastest Route',
-              type: index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest',
-              distance,
-              duration,
-              safetyScore,
-              color: index === 0 ? 'safe' : index === 1 ? 'caution' : 'unsafe',
-              polyline: route.overview_polyline,
-              legs: route.legs,
-              warnings: route.warnings || [],
-              summary: route.summary,
-              steps: leg.steps || [] // Include steps for turn-by-turn navigation
-            };
+              const routeData: RouteData = {
+                id: `route-${index}`,
+                name: index === 0 ? 'Safest Route' : index === 1 ? 'Balanced Route' : 'Fastest Route',
+                type: index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest',
+                distance,
+                duration,
+                safetyScore,
+                color: index === 0 ? 'safe' : index === 1 ? 'caution' : 'unsafe',
+                polyline: route.overview_polyline,
+                legs: route.legs,
+                warnings: route.warnings || [],
+                summary: route.summary,
+                steps: leg.steps || [] // Include steps for turn-by-turn navigation
+              };
 
-            routes.push(routeData);
+              routes.push(routeData);
+              console.log(`✓ Route ${index + 1}: ${distance}, ${duration}`);
 
-            // Render route on map
-            if (this.map) {
-              const renderer = new google.maps.DirectionsRenderer({
-                map: this.map,
-                directions: result,
-                routeIndex: index,
-                polylineOptions: {
-                  strokeColor: this.getRouteColor(index),
-                  strokeWeight: index === 0 ? 6 : 4,
-                  strokeOpacity: index === 0 ? 0.8 : 0.6
-                },
-                suppressMarkers: false,
-                markerOptions: {
-                  visible: index === 0 // Only show markers for the first route
+              // Render route on map
+              if (this.map) {
+                try {
+                  const renderer = new google.maps.DirectionsRenderer({
+                    map: this.map,
+                    directions: result,
+                    routeIndex: index,
+                    polylineOptions: {
+                      strokeColor: this.getRouteColor(index),
+                      strokeWeight: index === 0 ? 6 : 4,
+                      strokeOpacity: index === 0 ? 0.8 : 0.6
+                    },
+                    suppressMarkers: false,
+                    markerOptions: {
+                      visible: index === 0 // Only show markers for the first route
+                    }
+                  });
+
+                  this.directionsRenderers.push(renderer);
+                  console.log(`✓ Route ${index + 1} rendered on map`);
+                } catch (renderError) {
+                  console.warn(`⚠️ Failed to render route ${index + 1}:`, renderError);
                 }
-              });
-
-              this.directionsRenderers.push(renderer);
-            }
-          });
-
-          // Fit map to show all routes
-          if (this.map && result.routes[0]) {
-            const bounds = new google.maps.LatLngBounds();
-            result.routes[0].legs[0].steps.forEach(step => {
-              bounds.extend(step.start_location);
-              bounds.extend(step.end_location);
+              }
             });
-            this.map.fitBounds(bounds);
-          }
 
-          resolve(routes);
+            // Fit map to show all routes
+            if (this.map && result.routes[0]) {
+              try {
+                const bounds = new google.maps.LatLngBounds();
+                result.routes[0].legs[0].steps.forEach(step => {
+                  bounds.extend(step.start_location);
+                  bounds.extend(step.end_location);
+                });
+                this.map.fitBounds(bounds);
+                console.log('✓ Map fitted to show all routes');
+              } catch (boundsError) {
+                console.warn('⚠️ Failed to fit map bounds:', boundsError);
+              }
+            }
+
+            console.log('✅ Successfully processed', routes.length, 'routes');
+            resolve(routes);
+          } catch (processingError) {
+            console.error('❌ Error processing routes:', processingError);
+            reject(new Error(`Failed to process routes: ${processingError}`));
+          }
         } else {
-          reject(new Error(`Directions request failed: ${status}`));
+          const statusMessage = `Directions API error: ${status}`;
+          console.error('❌ ' + statusMessage);
+          
+          if (status === 'ZERO_RESULTS') {
+            reject(new Error('No routes found. Please check your origin and destination.'));
+          } else if (status === 'NOT_FOUND') {
+            reject(new Error('Origin or destination not found. Please check your addresses.'));
+          } else if (status === 'REQUEST_DENIED') {
+            reject(new Error('Google Maps request denied. Check your API key and permissions.'));
+          } else {
+            reject(new Error(statusMessage));
+          }
         }
       });
     });
