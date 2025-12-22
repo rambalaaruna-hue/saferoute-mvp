@@ -96,7 +96,7 @@ function loadGoogleMapsScript(): Promise<void> {
 
     // Create and load the script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry,directions&callback=initGoogleMaps&v=beta`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry,directions&callback=initGoogleMaps`;
     script.async = true;
     script.defer = true;
     script.referrerPolicy = 'no-referrer-when-downgrade';
@@ -112,14 +112,18 @@ function loadGoogleMapsScript(): Promise<void> {
     const onError = (error: Event) => {
       script.removeEventListener('error', onError);
       delete (window as any).initGoogleMaps;
-      console.error('Failed to load Google Maps script:', error);
-      console.error('Please check:');
-      console.error('1. API key is valid');
-      console.error('2. Maps JavaScript API is enabled in Google Cloud Console');
-      console.error('3. Directions API is enabled');
-      console.error('4. Places API is enabled');
-      console.error('5. Billing is enabled on your Google Cloud project');
-      reject(new Error('Failed to load Google Maps script. Check console for details.'));
+      console.error('❌ Failed to load Google Maps script:', error);
+      console.error('🔍 Troubleshooting:');
+      console.error('1. Check if API key is valid');
+      console.error('2. Go to Google Cloud Console and enable:');
+      console.error('   - Maps JavaScript API');
+      console.error('   - Directions API');
+      console.error('   - Geocoding API');
+      console.error('   - Places API');
+      console.error('3. Check if billing is enabled');
+      console.error('4. For localhost development: Allow all domains or add localhost:5173');
+      console.error('5. Current URL:', window.location.href);
+      reject(new Error('Failed to load Google Maps script'));
     };
     
     script.addEventListener('error', onError);

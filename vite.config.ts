@@ -15,6 +15,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    // Exclude frontend and other directories from being served
+    middlewareMode: false,
+  },
   build: {
     rollupOptions: {
       input: path.resolve(__dirname, 'index.html'),
