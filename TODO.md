@@ -45,6 +45,8 @@
 - Fixed React DOM removeChild error by separating map container from loading overlay
 - Improved useEffect to prevent re-initialization loops
 - Enhanced script loading with proper event listener cleanup
+- Added check in initMap to prevent multiple map instances (critical fix for removeChild error)
+- Added stable key to map container to prevent React reconciliation issues
 
 ## How to Add Gemini API Key
 1. Get your Gemini API key from https://makersuite.google.com/app/apikey

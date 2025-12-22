@@ -120,6 +120,11 @@ class GoogleMapsService {
   async initMap(mapElement: HTMLElement, center?: { lat: number; lng: number }): Promise<google.maps.Map> {
     await this.ensureLoaded();
     
+    // If map is already initialized, return it
+    if (this.map) {
+      return this.map;
+    }
+    
     this.map = new google.maps.Map(mapElement, {
       center: center || { lat: 40.7128, lng: -74.0060 }, // Default to NYC
       zoom: 13,

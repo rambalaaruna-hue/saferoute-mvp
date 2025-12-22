@@ -340,10 +340,11 @@ export default function SafeRoute() {
                     </div>
                   </div>
                 )}
-                {/* Map container - always rendered */}
+                {/* Map container - always rendered, React should not manage its children */}
                 <div 
                   ref={mapContainerRef}
                   className="w-full h-full"
+                  key="google-map-container"
                 />
               </div>
             </CardContent>
