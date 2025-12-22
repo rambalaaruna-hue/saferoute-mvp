@@ -1,0 +1,34 @@
+:root {
+    --primary: #6200ea;
+    --danger: #d50000;
+    --dark-bg: #121212;
+    --card-bg: #1e1e1e;
+    --text: #ffffff;
+}
+
+body { margin: 0; font-family: 'Roboto', sans-serif; background: var(--dark-bg); color: var(--text); }
+.app-container { display: flex; flex-direction: column; height: 100vh; }
+
+header { padding: 15px; background: var(--card-bg); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+h1 { margin: 0; font-size: 1.2rem; }
+
+#sos-btn { background: var(--danger); color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; animation: pulse 2s infinite; }
+
+.controls { padding: 15px; background: var(--card-bg); z-index: 10; }
+input { width: 95%; padding: 10px; margin-bottom: 10px; border: none; border-radius: 5px; background: #333; color: white; }
+#find-route-btn { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; }
+
+#ai-insight { margin: 10px; padding: 15px; background: #2a2a2a; border-left: 4px solid #00e676; border-radius: 5px; }
+.hidden { display: none; }
+
+#map { flex-grow: 1; width: 100%; }
+
+/* Floating Action Button */
+.fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: white; border: none; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; }
+
+/* Modal */
+.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { background: var(--card-bg); padding: 20px; border-radius: 10px; width: 80%; max-width: 300px; text-align: center; }
+select { width: 100%; padding: 10px; margin: 10px 0; }
+
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
