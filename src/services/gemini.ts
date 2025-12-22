@@ -13,17 +13,30 @@ export interface SafetyAnalysis {
 class GeminiService {
   private genAI: GoogleGenerativeAI | null = null;
   private model: any = null;
+  private isInitialized = false;
 
   constructor() {
-    if (GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here') {
-      console.log('🤖 Gemini API configured');
-      console.log('📏 Key length:', GEMINI_API_KEY.length, '(should be 39)');
-      console.log('✓ Key format valid:', GEMINI_API_KEY.startsWith('AIza'));
-      this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
-    } else {
-      console.warn('⚠️ Gemini API not configured - using fallback analysis');
-      console.warn('Set VITE_GEMINI_API_KEY in .env for AI-powered safety analysis');
+    try {
+      if (GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here') {
+        console.log('🤖 Initializing Gemini API...');
+        console.log('📏 Key length:', GEMINI_API_KEY.length, '(should be 39)');
+        console.log('✓ Key format valid:', GEMINI_API_KEY.startsWith('AIza'));
+        
+        this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+        this.isInitialized = true;
+        
+        console.log('✅ Gemini API initialized successfully');
+      } else {
+        console.warn('⚠️ Gemini API not configured - using fallback analysis');
+        console.warn('Set VITE_GEMINI_API_KEY in .env for AI-powered safety analysis');
+        this.isInitialized = false;
+      }
+    } catch (error) {
+      console.error('❌ Error initializing Gemini API:', error);
+      this.genAI = null;
+      this.model = null;
+      this.isInitialized = false;
     }
   }
 
@@ -34,9 +47,10 @@ class GeminiService {
   async analyzeRouteSafety(
     route: RouteData,
     travelTime: string,
-    routeIndex: number
+    routeIndex: number,
+    timeoutMs: number = 10000 // 10 second timeout per route
   ): Promise<SafetyAnalysis> {
-    console.log('🚦 Starting route safety analysis for route index:', routeIndex);
+    console.log('🚦 Starting route safety analysis for route index:', routeIndex, `(timeout: ${timeoutMs}ms)`);
     if (!this.isConfigured()) {
       console.warn('⚠️ GeminiService not configured. Using fallback analysis.');
       return this.getFallbackAnalysis(route, routeIndex);
@@ -44,15 +58,30 @@ class GeminiService {
 
     try {
       const prompt = this.buildSafetyPrompt(route, travelTime, routeIndex);
-      console.log('📝 Generated safety prompt:', prompt);
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      console.log('✅ Gemini API response received. Parsing response...');
-      return this.parseAnalysisResponse(text, route);
+      console.log('📝 Generated safety prompt:', prompt.substring(0, 100) + '...');
+      
+      // Create a timeout promise
+      const timeoutPromise = new Promise<SafetyAnalysis>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Gemini API timeout for route ${routeIndex} after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
+
+      // Race between the actual API call and the timeout
+      const analysisPromise = (async () => {
+        const result = await this.model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        console.log('✅ Gemini API response received for route', routeIndex);
+        return this.parseAnalysisResponse(text, route);
+      })();
+
+      return await Promise.race([analysisPromise, timeoutPromise]);
     } catch (error) {
-      console.error('❌ Gemini API error during analysis:', error);
-      return this.getFallbackAnalysis(route, routeIndex);
+      console.error(`❌ Gemini API error for route ${routeIndex}:`, error);
+      const fallback = this.getFallbackAnalysis(route, routeIndex);
+      console.log(`✓ Using fallback analysis for route ${routeIndex}`);
+      return fallback;
     }
   }
 
@@ -239,22 +268,51 @@ Keep the tone calm, reassuring, and informative. Focus on facts, not fear. Be ho
 
   async analyzeMultipleRoutes(
     routes: RouteData[],
-    travelTime: string
+    travelTime: string,
+    timeoutMs: number = 10000
   ): Promise<Map<string, SafetyAnalysis>> {
     const analyses = new Map<string, SafetyAnalysis>();
 
-    // Analyze routes in parallel
-    const promises = routes.map((route, index) =>
-      this.analyzeRouteSafety(route, travelTime, index)
-    );
-
-    const results = await Promise.all(promises);
-
-    routes.forEach((route, index) => {
-      analyses.set(route.id, results[index]);
+    console.log(`🚀 Starting parallel analysis for ${routes.length} routes`);
+    
+    // Create a timeout promise for the entire operation
+    const overallTimeoutPromise = new Promise<Map<string, SafetyAnalysis>>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Overall Gemini analysis timeout after ${timeoutMs * routes.length}ms`));
+      }, timeoutMs * routes.length);
     });
 
-    return analyses;
+    const analysisPromise = (async () => {
+      // Analyze routes in parallel, but with individual timeouts
+      const promises = routes.map((route, index) => {
+        return this.analyzeRouteSafety(route, travelTime, index, timeoutMs)
+          .catch(error => {
+            console.warn(`Route ${index} analysis failed:`, error);
+            return this.getFallbackAnalysis(route, index);
+          });
+      });
+
+      const results = await Promise.all(promises);
+
+      routes.forEach((route, index) => {
+        analyses.set(route.id, results[index]);
+      });
+
+      console.log(`✅ Analysis complete for ${routes.length} routes`);
+      return analyses;
+    })();
+
+    try {
+      return await Promise.race([analysisPromise, overallTimeoutPromise]);
+    } catch (error) {
+      console.error('❌ Fatal error in analyzeMultipleRoutes:', error);
+      // Return empty analyses map on complete failure
+      // This allows the routes to display with default safety scores
+      routes.forEach((route, index) => {
+        analyses.set(route.id, this.getFallbackAnalysis(route, index));
+      });
+      return analyses;
+    }
   }
 }
 

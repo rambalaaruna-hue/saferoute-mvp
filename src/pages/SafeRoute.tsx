@@ -166,43 +166,46 @@ export default function SafeRoute() {
       }
 
       setRoutes(fetchedRoutes);
+      setSelectedRoute(fetchedRoutes[0]);
 
-      // Analyze routes with Gemini AI (runs AFTER routes are fetched)
       toast({
         title: 'Routes Found',
-        description: 'Analyzing route safety with AI...'
+        description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''}`
       });
 
-      // Gemini analysis runs independently and won't block the UI
-      try {
-        const analyses = await geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime);
-        setSafetyAnalyses(analyses);
+      // Analyze routes with Gemini AI (runs NON-BLOCKING in background)
+      // This ensures the map and routes display immediately
+      console.log('🚀 Starting Gemini analysis in the background (non-blocking)');
+      geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime, 8000)
+        .then(analyses => {
+          console.log('✅ Gemini analysis completed in background');
+          setSafetyAnalyses(analyses);
 
-        // Update routes with AI-enhanced safety scores
-        const updatedRoutes = fetchedRoutes.map(route => {
-          const analysis = analyses.get(route.id);
-          if (analysis) {
-            return { ...route, safetyScore: analysis.safetyScore };
-          }
-          return route;
-        });
+          // Update routes with AI-enhanced safety scores
+          const updatedRoutes = fetchedRoutes.map(route => {
+            const analysis = analyses.get(route.id);
+            if (analysis) {
+              return { ...route, safetyScore: analysis.safetyScore };
+            }
+            return route;
+          });
 
-        setRoutes(updatedRoutes);
-        setSelectedRoute(updatedRoutes[0]);
+          setRoutes(updatedRoutes);
 
-        toast({
-          title: 'Analysis Complete',
-          description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} with AI safety analysis`,
+          toast({
+            title: 'Analysis Complete',
+            description: `AI safety analysis complete for ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''}`,
+          });
+        })
+        .catch(error => {
+          console.error('❌ Gemini analysis failed in background:', error);
+          // Routes are already displayed, just log the error
+          toast({
+            title: 'AI Analysis Unavailable',
+            description: 'Routes displayed with default safety scores',
+            variant: 'default'
+          });
         });
-      } catch (geminiError) {
-        console.error('❌ Gemini analysis failed, using default scores:', geminiError);
-        // Routes are already set, just show them without AI enhancement
-        setSelectedRoute(fetchedRoutes[0]);
-        toast({
-          title: 'Routes Found',
-          description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} (AI analysis unavailable)`,
-        });
-      }
 
     } catch (error) {
       console.error('Error finding routes:', error);
