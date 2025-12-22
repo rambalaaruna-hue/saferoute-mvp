@@ -22,14 +22,36 @@ export interface Location {
   address: string;
 }
 
+// Declare google as a global variable
+declare global {
+  interface Window {
+    google: typeof google;
+  }
+}
+
 // Load Google Maps script dynamically
 function loadGoogleMapsScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (typeof google !== 'undefined' && google.maps) {
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps) {
       resolve();
       return;
     }
 
+    // Check if script is already being loaded
+    const existingScript = document.querySelector(
+      `script[src*="maps.googleapis.com/maps/api/js"]`
+    );
+    
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve());
+      existingScript.addEventListener('error', () => 
+        reject(new Error('Failed to load Google Maps script'))
+      );
+      return;
+    }
+
+    // Create and load the script
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry`;
     script.async = true;

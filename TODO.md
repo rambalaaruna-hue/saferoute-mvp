@@ -39,8 +39,9 @@
 - Real-time route fetching and AI analysis implemented
 - Fallback analysis works when Gemini API not configured
 - Map displays with custom dark theme matching SafeRoute design
-- Dynamic script loading for Google Maps (no build-time dependencies)
+- Dynamic script loading for Google Maps (no external loader library needed)
 - All services properly typed with TypeScript
+- Removed @googlemaps/js-api-loader dependency (using native script loading)
 
 ## How to Add Gemini API Key
 1. Get your Gemini API key from https://makersuite.google.com/app/apikey
