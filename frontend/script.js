@@ -1,14 +1,14 @@
 // script.js
-// Import from your new folders
 import { db, collection, addDoc, getDocs } from "./firebase/config.js";
 import { getRouteSafetyAnalysis } from "./backend/gemini.js";
 
 // Global Variables
 let map, directionsService, directionsRenderer;
 
-// 1. Initialize Map
+// --- 1. INITIALIZE MAP (Attached to window for Google Maps API) ---
 window.initMap = async function() {
-    const defaultLoc = { lat: 28.6139, lng: 77.2090 }; // Change to your city
+    console.log("📍 Google Maps Initializing...");
+    const defaultLoc = { lat: 28.6139, lng: 77.2090 }; 
 
     map = new google.maps.Map(document.getElementById("map"), {
         center: defaultLoc,
@@ -17,7 +17,6 @@ window.initMap = async function() {
         styles: [ 
             { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
             { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
             { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] }
         ]
     });
@@ -32,12 +31,52 @@ window.initMap = async function() {
     new google.maps.places.Autocomplete(document.getElementById("start-input"));
     new google.maps.places.Autocomplete(document.getElementById("end-input"));
 
-    // Load Reports from Firebase
     loadSafetyIncidents();
 };
 
-// 2. Routing Logic
-document.getElementById("find-route-btn").addEventListener("click", () => {
+// --- 2. BUTTON LOGIC (Wrapped in DOMContentLoaded) ---
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("✅ DOM Fully Loaded");
+
+    // Route Button
+    const findRouteBtn = document.getElementById("find-route-btn");
+    if (findRouteBtn) {
+        findRouteBtn.addEventListener("click", handleRouting);
+    }
+
+    // Modal Controls
+    const reportBtn = document.getElementById("report-btn");
+    const closeModal = document.getElementById("close-modal");
+    const submitReport = document.getElementById("submit-report");
+
+    if (reportBtn) {
+        reportBtn.addEventListener("click", () => {
+            document.getElementById("report-modal").classList.remove("hidden");
+        });
+    }
+
+    if (closeModal) {
+        closeModal.addEventListener("click", () => {
+            document.getElementById("report-modal").classList.add("hidden");
+        });
+    }
+
+    if (submitReport) {
+        submitReport.addEventListener("click", submitIncident);
+    }
+
+    // SOS Button
+    const sosBtn = document.getElementById("sos-btn");
+    if (sosBtn) {
+        sosBtn.addEventListener("click", () => {
+            alert("🚨 SOS TRIGGERED: Sending Location to Emergency Contacts...");
+        });
+    }
+});
+
+// --- 3. HELPER FUNCTIONS ---
+
+async function handleRouting() {
     const start = document.getElementById("start-input").value;
     const end = document.getElementById("end-input").value;
 
@@ -49,24 +88,19 @@ document.getElementById("find-route-btn").addEventListener("click", () => {
             if (status === "OK") {
                 directionsRenderer.setDirections(response);
                 
-                // --- CALLING YOUR NEW BACKEND FILE ---
                 const route = response.routes[0];
                 const summary = route.summary;
                 const steps = route.legs[0].steps.map(s => s.instructions.replace(/<[^>]*>?/gm, '')).join(" ").substring(0, 300);
                 
-                // Show "Thinking..." state
                 document.getElementById("ai-insight").classList.remove("hidden");
-                document.getElementById("ai-text").innerText = "Consulting AI...";
+                document.getElementById("ai-text").innerText = "Consulting Gemini AI...";
                 
-                // Call the function from gemini.js
                 const safetyData = await getRouteSafetyAnalysis(summary, steps);
                 
-                // Update UI
                 const scoreBadge = document.getElementById("safety-score");
-                scoreBadge.innerText = `${safetyData.score}/10`;
+                scoreBadge.innerText = `Score: ${safetyData.score}/10`;
                 document.getElementById("ai-text").innerText = safetyData.advisory;
                 
-                // Color logic
                 scoreBadge.style.background = safetyData.score > 7 ? "#00e676" : (safetyData.score > 4 ? "#ffea00" : "#ff3d00");
                 
             } else {
@@ -74,18 +108,9 @@ document.getElementById("find-route-btn").addEventListener("click", () => {
             }
         }
     );
-});
+}
 
-// 3. Reporting Logic (Using imports from firebase/config.js)
-document.getElementById("report-btn").addEventListener("click", () => {
-    document.getElementById("report-modal").classList.remove("hidden");
-});
-
-document.getElementById("close-modal").addEventListener("click", () => {
-    document.getElementById("report-modal").classList.add("hidden");
-});
-
-document.getElementById("submit-report").addEventListener("click", async () => {
+async function submitIncident() {
     const type = document.getElementById("issue-type").value;
     const center = map.getCenter();
 
@@ -96,28 +121,26 @@ document.getElementById("submit-report").addEventListener("click", async () => {
             lng: center.lng(),
             timestamp: new Date()
         });
-        alert("Report Submitted!");
+        alert("Report Submitted Successfully!");
         document.getElementById("report-modal").classList.add("hidden");
         loadSafetyIncidents();
     } catch (e) {
         console.error("Firebase Error:", e);
     }
-});
-
-async function loadSafetyIncidents() {
-    const querySnapshot = await getDocs(collection(db, "incidents"));
-    querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        new google.maps.Marker({
-            position: { lat: data.lat, lng: data.lng },
-            map: map,
-            title: data.type,
-            icon: "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
-        });
-    });
 }
 
-// 4. SOS Button
-document.getElementById("sos-btn").addEventListener("click", () => {
-    alert("SOS TRIGGERED: Sending Location to Emergency Contacts...");
-});
+async function loadSafetyIncidents() {
+    try {
+        const querySnapshot = await getDocs(collection(db, "incidents"));
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            new google.maps.Marker({
+                position: { lat: data.lat, lng: data.lng },
+                map: map,
+                title: data.type
+            });
+        });
+    } catch (e) {
+        console.error("Error loading incidents:", e);
+    }
+}
