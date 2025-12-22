@@ -56,6 +56,15 @@ function loadGoogleMapsScript(): Promise<void> {
       return;
     }
 
+    // Validate API key
+    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'your_google_maps_api_key_here') {
+      console.error('Google Maps API key is not configured. Please set VITE_GOOGLE_MAPS_API_KEY in .env file');
+      reject(new Error('Google Maps API key is not configured'));
+      return;
+    }
+
+    console.log('Loading Google Maps with API key:', GOOGLE_MAPS_API_KEY.substring(0, 10) + '...');
+
     // Check if script is already being loaded
     const existingScript = document.querySelector(
       `script[src*="maps.googleapis.com/maps/api/js"]`
@@ -71,9 +80,10 @@ function loadGoogleMapsScript(): Promise<void> {
           existingScript.removeEventListener('error', onError);
           resolve();
         };
-        const onError = () => {
+        const onError = (error: Event) => {
           existingScript.removeEventListener('load', onLoad);
           existingScript.removeEventListener('error', onError);
+          console.error('Google Maps script failed to load:', error);
           reject(new Error('Failed to load Google Maps script'));
         };
         existingScript.addEventListener('load', onLoad);
@@ -84,23 +94,31 @@ function loadGoogleMapsScript(): Promise<void> {
 
     // Create and load the script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initGoogleMaps`;
     script.async = true;
     script.defer = true;
     
-    const onLoad = () => {
-      script.removeEventListener('load', onLoad);
+    // Add global callback for Google Maps
+    (window as any).initGoogleMaps = () => {
+      console.log('Google Maps loaded successfully');
+      delete (window as any).initGoogleMaps;
       script.removeEventListener('error', onError);
       resolve();
     };
     
-    const onError = () => {
-      script.removeEventListener('load', onLoad);
+    const onError = (error: Event) => {
       script.removeEventListener('error', onError);
-      reject(new Error('Failed to load Google Maps script'));
+      delete (window as any).initGoogleMaps;
+      console.error('Failed to load Google Maps script:', error);
+      console.error('Please check:');
+      console.error('1. API key is valid');
+      console.error('2. Maps JavaScript API is enabled in Google Cloud Console');
+      console.error('3. Directions API is enabled');
+      console.error('4. Places API is enabled');
+      console.error('5. Billing is enabled on your Google Cloud project');
+      reject(new Error('Failed to load Google Maps script. Check console for details.'));
     };
     
-    script.addEventListener('load', onLoad);
     script.addEventListener('error', onError);
     document.head.appendChild(script);
   });

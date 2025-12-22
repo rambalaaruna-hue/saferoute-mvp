@@ -167,25 +167,67 @@ The application includes demo-friendly features:
 
 ## 🐛 Troubleshooting
 
+### ⚠️ "This page didn't load Google Maps correctly"
+
+This is the most common error. **Quick Fix:**
+
+1. **Open the diagnostic tool:** `http://localhost:5173/test-maps.html`
+   - This will show you the exact error
+
+2. **Most common causes:**
+   - ❌ Billing not enabled in Google Cloud Console
+   - ❌ Required APIs not enabled
+   - ❌ Dev server not restarted after changing `.env`
+
+3. **Quick solution:**
+   ```bash
+   # 1. Check .env file has the API key
+   # 2. Restart the dev server
+   npm run dev
+   ```
+
+4. **Detailed guide:** See `MAPS_ERROR_FIX.md` for step-by-step solutions
+
 ### Map Not Loading
 - Check Google Maps API key in `.env`
-- Ensure required APIs are enabled in Google Cloud Console
-- Check browser console for errors
+- Ensure required APIs are enabled in Google Cloud Console:
+  - Maps JavaScript API ✅
+  - Directions API ✅
+  - Places API ✅
+  - Geocoding API ✅
+- **Enable billing** on your Google Cloud project (required!)
+- Check browser console for specific error messages
+- Try the diagnostic tool: `http://localhost:5173/test-maps.html`
 
 ### No Routes Found
 - Use specific addresses (include city/state)
 - Verify both start and destination are valid
 - Try well-known locations first (e.g., "Times Square, New York")
+- Check if locations are walkable (not too far apart)
 
 ### Gemini AI Not Working
 - Add your Gemini API key to `.env`
 - Restart the development server
 - App will use fallback analysis if key is missing
+- Check browser console for API errors
 
 ### Current Location Not Working
 - Allow location access in browser
 - Use HTTPS or localhost
 - Check browser console for errors
+- Try manually entering an address
+
+### Environment Variables Not Loading
+- Ensure `.env` file is in project root
+- File must be named exactly `.env` (not `.env.txt`)
+- **Restart dev server** after any changes to `.env`
+- Check console: should see "Loading Google Maps with API key: AIzaSyCo3c..."
+
+### Need More Help?
+- 📄 **Quick Fix Guide:** `MAPS_ERROR_FIX.md`
+- 📄 **Detailed Troubleshooting:** `GOOGLE_MAPS_TROUBLESHOOTING.md`
+- 🧪 **Diagnostic Tool:** `http://localhost:5173/test-maps.html`
+- 📄 **Navigation Guide:** `GEMINI_NAVIGATION_GUIDE.md`
 
 ## ⚠️ Important Notes
 

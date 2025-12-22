@@ -57,9 +57,12 @@ export default function SafeRoute() {
       setMapInitialized(true);
     } catch (error) {
       console.error('Error initializing map:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast({
-        title: 'Map Error',
-        description: 'Failed to initialize map. Please refresh the page.',
+        title: 'Map Loading Failed',
+        description: errorMessage.includes('API key') 
+          ? 'Google Maps API key is not configured or invalid. Please check the console for details.'
+          : 'Failed to load Google Maps. Please check your internet connection and API key configuration.',
         variant: 'destructive'
       });
     }
