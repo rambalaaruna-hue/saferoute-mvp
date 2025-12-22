@@ -36,20 +36,22 @@ class GeminiService {
     travelTime: string,
     routeIndex: number
   ): Promise<SafetyAnalysis> {
+    console.log('🚦 Starting route safety analysis for route index:', routeIndex);
     if (!this.isConfigured()) {
-      // Return fallback analysis if Gemini is not configured
+      console.warn('⚠️ GeminiService not configured. Using fallback analysis.');
       return this.getFallbackAnalysis(route, routeIndex);
     }
 
     try {
       const prompt = this.buildSafetyPrompt(route, travelTime, routeIndex);
+      console.log('📝 Generated safety prompt:', prompt);
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-
+      console.log('✅ Gemini API response received. Parsing response...');
       return this.parseAnalysisResponse(text, route);
     } catch (error) {
-      console.error('Gemini API error:', error);
+      console.error('❌ Gemini API error during analysis:', error);
       return this.getFallbackAnalysis(route, routeIndex);
     }
   }

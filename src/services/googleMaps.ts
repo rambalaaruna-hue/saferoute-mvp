@@ -44,21 +44,24 @@ declare global {
 
 // Load Google Maps script dynamically
 function loadGoogleMapsScript(): Promise<void> {
+  console.log('🚀 Initiating Google Maps script loading...');
   // Return existing promise if script is already being loaded
   if (window.__googleMapsScriptLoading) {
+    console.log('🔄 Google Maps script is already loading. Returning existing promise.');
     return window.__googleMapsScriptLoading;
   }
 
   const promise = new Promise<void>((resolve, reject) => {
     // Check if Google Maps is already loaded
     if (window.google && window.google.maps) {
+      console.log('✅ Google Maps already loaded. Resolving immediately.');
       resolve();
       return;
     }
 
     // Validate API key
     if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'your_google_maps_api_key_here') {
-      console.error('Google Maps API key is not configured. Please set VITE_GOOGLE_MAPS_API_KEY in .env file');
+      console.error('❌ Google Maps API key is not configured. Please set VITE_GOOGLE_MAPS_API_KEY in .env file');
       reject(new Error('Google Maps API key is not configured'));
       return;
     }
@@ -73,23 +76,20 @@ function loadGoogleMapsScript(): Promise<void> {
     ) as HTMLScriptElement;
     
     if (existingScript) {
+      console.log('🔍 Google Maps script already exists. Waiting for it to load...');
       // Script exists, wait for it to load
       if (window.google && window.google.maps) {
         resolve();
       } else {
         const onLoad = () => {
-          existingScript.removeEventListener('load', onLoad);
-          existingScript.removeEventListener('error', onError);
+          console.log('✅ Google Maps script loaded successfully.');
           resolve();
         };
-        const onError = (error: Event) => {
-          existingScript.removeEventListener('load', onLoad);
-          existingScript.removeEventListener('error', onError);
-          console.error('Google Maps script failed to load:', error);
-          reject(new Error('Failed to load Google Maps script'));
-        };
         existingScript.addEventListener('load', onLoad);
-        existingScript.addEventListener('error', onError);
+        existingScript.addEventListener('error', (e) => {
+          console.error('❌ Error loading Google Maps script:', e);
+          reject(e);
+        });
       }
       return;
     }
