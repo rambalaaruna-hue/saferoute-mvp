@@ -14,12 +14,24 @@ export interface RouteData {
   legs: google.maps.DirectionsLeg[];
   warnings: string[];
   summary: string;
+  steps: google.maps.DirectionsStep[]; // Added for turn-by-turn navigation
 }
 
 export interface Location {
   lat: number;
   lng: number;
   address: string;
+}
+
+export interface NavigationStep {
+  instruction: string;
+  distance: string;
+  duration: string;
+  maneuver?: string;
+  location: {
+    lat: number;
+    lng: number;
+  };
 }
 
 // Declare google as a global variable
@@ -242,7 +254,8 @@ class GoogleMapsService {
               polyline: route.overview_polyline,
               legs: route.legs,
               warnings: route.warnings || [],
-              summary: route.summary
+              summary: route.summary,
+              steps: leg.steps || [] // Include steps for turn-by-turn navigation
             };
 
             routes.push(routeData);
@@ -379,6 +392,145 @@ class GoogleMapsService {
   clearRoutes() {
     this.directionsRenderers.forEach(renderer => renderer.setMap(null));
     this.directionsRenderers = [];
+  }
+
+  // Get turn-by-turn navigation steps for a route
+  getNavigationSteps(route: RouteData): NavigationStep[] {
+    const steps: NavigationStep[] = [];
+    
+    route.steps.forEach((step) => {
+      steps.push({
+        instruction: step.instructions.replace(/<[^>]*>/g, ''), // Remove HTML tags
+        distance: step.distance?.text || '',
+        duration: step.duration?.text || '',
+        maneuver: step.maneuver,
+        location: {
+          lat: step.start_location.lat(),
+          lng: step.start_location.lng()
+        }
+      });
+    });
+
+    return steps;
+  }
+
+  // Start navigation mode with live tracking
+  startNavigation(route: RouteData, onLocationUpdate?: (location: Location, nextStep: NavigationStep | null) => void): () => void {
+    let watchId: number | null = null;
+    let currentStepIndex = 0;
+    const steps = this.getNavigationSteps(route);
+
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        async (position) => {
+          const currentLat = position.coords.latitude;
+          const currentLng = position.coords.longitude;
+
+          // Get address for current location
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode(
+            { location: { lat: currentLat, lng: currentLng } },
+            (results, status) => {
+              const address = status === 'OK' && results && results[0]
+                ? results[0].formatted_address
+                : `${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
+
+              const currentLocation: Location = {
+                lat: currentLat,
+                lng: currentLng,
+                address
+              };
+
+              // Find the next step based on current location
+              let nextStep: NavigationStep | null = null;
+              
+              if (currentStepIndex < steps.length) {
+                nextStep = steps[currentStepIndex];
+                
+                // Calculate distance to next step
+                const stepLat = nextStep.location.lat;
+                const stepLng = nextStep.location.lng;
+                const distance = this.calculateDistance(
+                  currentLat,
+                  currentLng,
+                  stepLat,
+                  stepLng
+                );
+
+                // If within 20 meters of the step, move to next step
+                if (distance < 0.02) { // ~20 meters
+                  currentStepIndex++;
+                  if (currentStepIndex < steps.length) {
+                    nextStep = steps[currentStepIndex];
+                  } else {
+                    nextStep = null; // Reached destination
+                  }
+                }
+              }
+
+              // Update map center to current location
+              if (this.map) {
+                this.map.setCenter({ lat: currentLat, lng: currentLng });
+                
+                // Add a marker for current location
+                new google.maps.Marker({
+                  position: { lat: currentLat, lng: currentLng },
+                  map: this.map,
+                  icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: '#4285F4',
+                    fillOpacity: 1,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2
+                  },
+                  title: 'Your Location'
+                });
+              }
+
+              // Call the callback with current location and next step
+              if (onLocationUpdate) {
+                onLocationUpdate(currentLocation, nextStep);
+              }
+            }
+          );
+        },
+        (error) => {
+          console.error('Navigation error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
+        }
+      );
+    }
+
+    // Return a function to stop navigation
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }
+
+  // Calculate distance between two points in kilometers
+  private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371; // Earth's radius in km
+    const dLat = this.toRad(lat2 - lat1);
+    const dLng = this.toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRad(lat1)) *
+        Math.cos(this.toRad(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 }
 

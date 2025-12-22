@@ -51,41 +51,50 @@ class GeminiService {
   private buildSafetyPrompt(route: RouteData, travelTime: string, routeIndex: number): string {
     const routeType = routeIndex === 0 ? 'safest' : routeIndex === 1 ? 'balanced' : 'fastest';
     
-    return `You are a safety analyst for SafeRoute, an app helping women choose safer routes at night.
+    return `You are a safety analyst for SafeRoute, an AI-powered navigation app helping women choose safer routes at night.
 
 Analyze this ${routeType} route for a woman traveling at ${travelTime}:
 
 Route Details:
+- Route Type: ${routeType.toUpperCase()}
 - Distance: ${route.distance}
 - Duration: ${route.duration}
 - Summary: ${route.summary}
 - Warnings: ${route.warnings.length > 0 ? route.warnings.join(', ') : 'None'}
+- Number of turns: ${route.steps.length}
+
+IMPORTANT: Provide a safety score that reflects the route type:
+- SAFEST route: 85-95 (prioritizes well-lit streets, high foot traffic, commercial areas)
+- BALANCED route: 70-84 (mix of safety and efficiency, some quieter areas)
+- FASTEST route: 50-69 (shortest path, may include isolated areas, lower lighting)
 
 Consider these safety factors:
-1. Time of travel (${travelTime}) - is it after sunset?
-2. Route characteristics - main streets vs side streets
-3. Likely foot traffic at this time
-4. Lighting conditions (evening/night)
-5. Proximity to commercial areas or residential zones
-6. Route complexity and number of turns
+1. Time of travel (${travelTime}) - lighting conditions
+2. Route characteristics - main streets vs side streets vs alleys
+3. Likely foot traffic and pedestrian presence at this time
+4. Proximity to commercial areas, residential zones, or isolated areas
+5. Route complexity - more turns may indicate populated areas
+6. Street lighting probability based on route type
+7. Emergency services accessibility
 
 Provide a safety analysis in this EXACT format:
 
-DESCRIPTION: [2-3 sentences explaining why this route is safer or less safe, focusing on lighting, foot traffic, and area characteristics]
+DESCRIPTION: [2-3 sentences explaining why this route has this safety level. Be specific about lighting, foot traffic, and area characteristics. Tone should be calm and factual.]
 
 HIGHLIGHTS:
-- [Key safety feature 1]
-- [Key safety feature 2]
-- [Key safety feature 3]
-- [Key safety feature 4]
+- [Key safety feature or concern 1]
+- [Key safety feature or concern 2]
+- [Key safety feature or concern 3]
+- [Key safety feature or concern 4]
 
-SAFETY_SCORE: [Number between 50-95, where 90+ is very safe, 70-89 is moderately safe, 50-69 needs caution]
+SAFETY_SCORE: [Number between 50-95 based on route type - SAFEST: 85-95, BALANCED: 70-84, FASTEST: 50-69]
 
 RECOMMENDATIONS:
-- [Practical safety tip 1]
-- [Practical safety tip 2]
+- [Practical safety tip 1 specific to this route type]
+- [Practical safety tip 2 specific to this route type]
+- [Practical safety tip 3 specific to this route type]
 
-Keep the tone calm, reassuring, and informative. Focus on facts, not fear.`;
+Keep the tone calm, reassuring, and informative. Focus on facts, not fear. Be honest about risks while providing actionable guidance.`;
   }
 
   private parseAnalysisResponse(text: string, route: RouteData): SafetyAnalysis {

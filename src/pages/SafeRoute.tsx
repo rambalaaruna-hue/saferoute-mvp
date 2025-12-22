@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { googleMapsService, type RouteData } from '@/services/googleMaps';
 import { geminiService, type SafetyAnalysis } from '@/services/gemini';
 import { useToast } from '@/hooks/use-toast';
+import { NavigationDialog } from '@/components/NavigationDialog';
 
 export default function SafeRoute() {
   const [selectedRoute, setSelectedRoute] = useState<RouteData | null>(null);
@@ -20,6 +21,7 @@ export default function SafeRoute() {
   const [destination, setDestination] = useState('');
   const [travelTime, setTravelTime] = useState('21:00');
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showNavigation, setShowNavigation] = useState(false);
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [mapInitialized, setMapInitialized] = useState(false);
@@ -443,13 +445,30 @@ export default function SafeRoute() {
                       <span className="text-muted-foreground">Duration:</span>
                       <span className="font-medium">{route.duration}</span>
                     </div>
-                    <Button 
-                      onClick={() => handleRouteSelect(route)}
-                      variant={selectedRoute?.id === route.id ? "default" : "outline"}
-                      className="w-full mt-2 text-xs xl:text-sm"
-                    >
-                      {selectedRoute?.id === route.id ? 'Selected' : 'Select Route'}
-                    </Button>
+                    <div className="flex gap-2 mt-2">
+                      <Button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRouteSelect(route);
+                        }}
+                        variant={selectedRoute?.id === route.id ? "default" : "outline"}
+                        className="flex-1 text-xs xl:text-sm"
+                      >
+                        {selectedRoute?.id === route.id ? 'Selected' : 'Select'}
+                      </Button>
+                      {selectedRoute?.id === route.id && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowNavigation(true);
+                          }}
+                          className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 text-xs xl:text-sm"
+                        >
+                          <Navigation className="w-3 h-3 xl:w-4 xl:h-4 mr-1" />
+                          Start
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -581,6 +600,13 @@ export default function SafeRoute() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Navigation Dialog */}
+      <NavigationDialog
+        open={showNavigation}
+        onOpenChange={setShowNavigation}
+        route={selectedRoute}
+      />
     </div>
   );
 }

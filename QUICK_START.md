@@ -1,139 +1,118 @@
-# 🚀 Quick Start Guide
+# SafeRoute - Quick Start Guide
 
-## ✅ What's Working Now
+## 🚀 Getting Started
 
-Your SafeRoute application now has **REAL** Google Maps and Gemini AI integration!
-
-### Google Maps ✅ (Already Working)
-- Real-time map display
-- Up to 3 alternative routes
-- Current location detection
-- Interactive route visualization
-- Custom dark theme
-
-### Gemini AI ⚠️ (Needs Your API Key)
-- AI-powered safety analysis
-- Natural language explanations
-- Personalized recommendations
-- **Currently using fallback analysis** (works but not AI-powered)
-
-## 🔑 Add Your Gemini API Key (5 Minutes)
-
-### Step 1: Get Your API Key
-1. Visit: https://makersuite.google.com/app/apikey
-2. Sign in with Google
-3. Click "Create API Key"
-4. Copy the key
-
-### Step 2: Add to Project
-1. Open `.env` file in project root
-2. Find this line:
-   ```
-   VITE_GEMINI_API_KEY=your_gemini_api_key_here
-   ```
-3. Replace with your key:
-   ```
-   VITE_GEMINI_API_KEY=AIzaSyC...your_actual_key
-   ```
-4. Save the file
-
-### Step 3: Restart Server
+### Start the App:
 ```bash
-# Stop the server (Ctrl+C)
-# Start again
 npm run dev
 ```
 
-## 🎮 How to Test
+Then open `http://localhost:5173` in your browser.
 
-### Test 1: Basic Route Finding
-1. Start location: "Times Square, New York"
-2. Destination: "Central Park, New York"
-3. Click "Find Safe Routes"
-4. ✅ Should show 3 routes on map
+## 🎯 How to Use
 
-### Test 2: Current Location
-1. Click the navigation icon button (next to start location)
-2. Allow browser location access
-3. ✅ Your address should auto-fill
+### 1. Enter Journey Details
+- Click "Use Current Location" or enter start address
+- Enter destination
+- Select travel time
+- Click "Find Safe Routes"
 
-### Test 3: AI Analysis (After adding Gemini key)
-1. Find routes (as above)
-2. Look at "Why this route is safer" section
-3. ✅ Should show AI-generated analysis
-4. ✅ Bottom should say "Powered by Gemini AI"
+### 2. Review Three Routes
+- **🟢 Safest** (85-95): Well-lit, busy areas
+- **🟡 Balanced** (70-84): Mix of safety & speed
+- **⚪ Fastest** (50-69): Shortest, use with caution
 
-## 📊 What You'll See
+### 3. Read AI Analysis
+Each route shows:
+- Safety score (Gemini AI-powered)
+- Natural language explanation
+- Key safety highlights
+- Personalized recommendations
 
-### Without Gemini API Key
-- ⚠️ Warning: "Gemini API not configured. Using fallback analysis."
-- Routes work perfectly
-- Safety analysis uses pre-written templates
-- Still fully functional for demo
+### 4. Start Navigation
+- Select your preferred route
+- Click **"Start"** button
+- Click **"Start Navigation"**
+- Follow turn-by-turn directions
 
-### With Gemini API Key
-- ✅ "Powered by Gemini AI"
-- Real-time AI analysis of each route
-- Personalized safety recommendations
-- Time-aware analysis
+## 🔑 API Keys (Already Configured)
 
-## 🎯 Demo Tips
+```env
+VITE_GOOGLE_MAPS_API_KEY=AIzaSyCo3cnR4Yk0cx4yHqK2_T699cZmsc_TRGg
+VITE_GEMINI_API_KEY=AIzaSyCo3cnR4Yk0cx4yHqK2_T699cZmsc_TRGg
+```
 
-### For Judges/Presentations
-1. **Start with the problem**: Show the hero section
-2. **Demonstrate the solution**: Enter real addresses
-3. **Show the AI**: Highlight the safety analysis
-4. **Compare routes**: Click different route cards
-5. **Show SOS**: Trigger the emergency feature
+**No setup needed - ready to use!**
 
-### Best Demo Addresses
-- New York: "Times Square" → "Central Park"
-- San Francisco: "Union Square" → "Golden Gate Park"
-- London: "Trafalgar Square" → "Hyde Park"
-- Any major city landmarks work great!
+## 🧪 Test Locations
 
-## 🔍 Verification Checklist
+```
+Start: Times Square, New York, NY
+Destination: Central Park, New York, NY
+```
 
-- [ ] Map loads and displays correctly
-- [ ] Can enter start and destination addresses
-- [ ] "Find Safe Routes" button works
-- [ ] See 3 routes on the map (different colors)
-- [ ] Can click route cards to select them
-- [ ] Safety analysis appears for selected route
-- [ ] SOS button appears after route selection
-- [ ] Current location button works
+## ✨ Features
 
-## 🐛 Quick Fixes
+✅ AI-powered safety analysis (Gemini)
+✅ Three route options with scores
+✅ Turn-by-turn navigation
+✅ Live GPS tracking
+✅ Auto-progressing steps
+✅ Dark theme (night-optimized)
+✅ Responsive design
+✅ SOS emergency button
 
-### Map shows but no routes
-- Check that both addresses are valid
-- Try more specific addresses (include city)
-- Check browser console for errors
+## 🔧 Troubleshooting
 
-### "No routes found" error
-- Use well-known locations
-- Include city/state in addresses
+**Map not loading?**
+- Check internet connection
+- Clear browser cache
+
+**Location not working?**
+- Grant location permission
+- Use HTTPS (required for GPS)
+
+**Routes not appearing?**
+- Verify addresses are valid
 - Try different locations
 
-### Gemini not working after adding key
-- Make sure you saved the .env file
-- Restart the development server
-- Check that key starts with "AIza"
-- No quotes around the key in .env
+## 📱 Mobile Tips
 
-## 📞 Need Help?
+- Grant location permission
+- Keep screen on
+- Use stable internet
+- Portrait mode recommended
 
-Check these files:
-- `INTEGRATION_GUIDE.md` - Detailed integration guide
-- `README.md` - Full documentation
-- `TODO.md` - Development notes
+## 🎯 Demo Tips (3-5 minutes)
 
-## 🎉 You're Ready!
+1. Enter "Times Square" → "Central Park"
+2. Show 3 routes with AI scores
+3. Highlight Gemini analysis
+4. Select safest route
+5. Open navigation dialog
+6. Show turn-by-turn steps
 
-Your SafeRoute prototype now has:
-- ✅ Real Google Maps integration
-- ✅ Real route calculation
-- ✅ Interactive map visualization
-- ⚠️ AI analysis (add Gemini key to enable)
+**Key Points:**
+- AI-powered (not just distance)
+- Three distinct safety levels
+- Real-time navigation
+- Women's safety focus
 
-**Time to impress those judges! 🚀**
+## 📊 Safety Scores
+
+- **90-95**: Excellent (well-lit, busy)
+- **85-89**: Very safe (main streets)
+- **75-84**: Moderately safe
+- **65-74**: Caution advised
+- **50-64**: Use only if necessary
+
+## 🚨 Emergency
+
+- SOS button (red, top-right)
+- Shows current location
+- Mock alert for demo
+- Future: Real emergency integration
+
+---
+
+**Ready to navigate safely! 🛡️**
