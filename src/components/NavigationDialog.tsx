@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Navigation, MapPin, Clock, TrendingUp, X, AlertCircle } from 'lucide-react';
+import { Navigation, MapPin, Clock, TrendingUp, AlertCircle } from 'lucide-react';
 import type { RouteData, NavigationStep, Location } from '@/services/googleMaps';
 import { googleMapsService } from '@/services/googleMaps';
 
@@ -79,19 +78,9 @@ export function NavigationDialog({ open, onOpenChange, route }: NavigationDialog
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] bg-card border-border">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Navigation className="w-5 h-5 text-primary" />
-              <DialogTitle className="text-foreground">Turn-by-Turn Navigation</DialogTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleClose}
-              className="h-6 w-6"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-2">
+            <Navigation className="w-5 h-5 text-primary" />
+            <DialogTitle className="text-foreground">Turn-by-Turn Navigation</DialogTitle>
           </div>
           <DialogDescription className="text-muted-foreground">
             {route.name} • {route.distance} • {route.duration}
