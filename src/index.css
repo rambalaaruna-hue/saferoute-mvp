@@ -9,74 +9,115 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --radius: 0.5rem;
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --sidebar-background: 300 0% 98%;
-    --sidebar-foreground: 300 0% 4%;
-    --sidebar-primary: 330 0% 9%;
-    --sidebar-primary-foreground: 300 0% 98%;
-    --sidebar-accent: 300 0% 96%;
-    --sidebar-accent-foreground: 330 0% 9%;
-    --sidebar-border: 330 0% 90%;
-    --sidebar-ring: 0 0% 63%;
-    --destructive-foreground: 210 40% 98%;
+    --radius: 0.75rem;
+    /* SafeRoute Color System - Calm Night Safety Theme */
+    /* Primary: Deep Navy Blue (#0B1C2D) - HSL: 210 60% 11% */
+    --background: 210 60% 11%;
+    --foreground: 180 10% 95%;
+    
+    /* Card: Slightly lighter navy for contrast */
+    --card: 210 50% 15%;
+    --card-foreground: 180 10% 95%;
+    
+    /* Popover */
+    --popover: 210 50% 15%;
+    --popover-foreground: 180 10% 95%;
+    
+    /* Primary: Soft Teal (#2EC4B6) - HSL: 174 62% 48% - for safe indicators */
+    --primary: 174 62% 48%;
+    --primary-foreground: 210 60% 11%;
+    
+    /* Secondary: Midnight Blue (#12263A) - HSL: 210 55% 15% */
+    --secondary: 210 55% 15%;
+    --secondary-foreground: 180 10% 95%;
+    
+    /* Muted: Darker navy for subtle elements */
+    --muted: 210 45% 20%;
+    --muted-foreground: 180 5% 70%;
+    
+    /* Accent: Muted Yellow (#F4D35E) - HSL: 45 88% 66% - for caution */
+    --accent: 45 88% 66%;
+    --accent-foreground: 210 60% 11%;
+    
+    /* Destructive: Red (#E63946) - HSL: 355 78% 56% - for SOS only */
+    --destructive: 355 78% 56%;
+    --destructive-foreground: 180 10% 95%;
+    
+    /* Borders and inputs - subtle */
+    --border: 210 40% 25%;
+    --input: 210 40% 20%;
+    --ring: 174 62% 48%;
+    
+    /* Chart colors */
+    --chart-1: 174 62% 48%;
+    --chart-2: 45 88% 66%;
+    --chart-3: 355 78% 56%;
+    --chart-4: 210 55% 35%;
+    --chart-5: 180 50% 60%;
+    
+    /* Sidebar */
+    --sidebar-background: 210 60% 11%;
+    --sidebar-foreground: 180 10% 95%;
+    --sidebar-primary: 174 62% 48%;
+    --sidebar-primary-foreground: 210 60% 11%;
+    --sidebar-accent: 210 50% 15%;
+    --sidebar-accent-foreground: 180 10% 95%;
+    --sidebar-border: 210 40% 25%;
+    --sidebar-ring: 174 62% 48%;
+    
+    /* Safe route indicator */
+    --safe: 174 62% 48%;
+    --safe-foreground: 210 60% 11%;
+    
+    /* Caution route indicator */
+    --caution: 45 88% 66%;
+    --caution-foreground: 210 60% 11%;
+    
+    /* Unsafe route indicator */
+    --unsafe: 0 0% 60%;
+    --unsafe-foreground: 180 10% 95%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%; 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 330 0% 9%;
-    --sidebar-foreground: 300 0% 98%;
-    --sidebar-primary: 225 84% 49%;
-    --sidebar-primary-foreground: 300 0% 98%;
-    --sidebar-accent: 320 0% 15%;
-    --sidebar-accent-foreground: 300 0% 98%;
-    --sidebar-border: 300 50% 0% / 10%;
-    --sidebar-ring: 300 0% 45%;
-    --destructive-foreground: 210 40% 98%;
+    /* Dark mode uses same colors as SafeRoute is designed for night use */
+    --background: 210 60% 11%;
+    --foreground: 180 10% 95%;
+    --card: 210 50% 15%;
+    --card-foreground: 180 10% 95%;
+    --popover: 210 50% 15%;
+    --popover-foreground: 180 10% 95%;
+    --primary: 174 62% 48%;
+    --primary-foreground: 210 60% 11%;
+    --secondary: 210 55% 15%;
+    --secondary-foreground: 180 10% 95%;
+    --muted: 210 45% 20%;
+    --muted-foreground: 180 5% 70%;
+    --accent: 45 88% 66%;
+    --accent-foreground: 210 60% 11%;
+    --destructive: 355 78% 56%;
+    --destructive-foreground: 180 10% 95%;
+    --border: 210 40% 25%;
+    --input: 210 40% 20%;
+    --ring: 174 62% 48%;
+    --chart-1: 174 62% 48%;
+    --chart-2: 45 88% 66%;
+    --chart-3: 355 78% 56%;
+    --chart-4: 210 55% 35%;
+    --chart-5: 180 50% 60%;
+    --sidebar-background: 210 60% 11%;
+    --sidebar-foreground: 180 10% 95%;
+    --sidebar-primary: 174 62% 48%;
+    --sidebar-primary-foreground: 210 60% 11%;
+    --sidebar-accent: 210 50% 15%;
+    --sidebar-accent-foreground: 180 10% 95%;
+    --sidebar-border: 210 40% 25%;
+    --sidebar-ring: 174 62% 48%;
+    --safe: 174 62% 48%;
+    --safe-foreground: 210 60% 11%;
+    --caution: 45 88% 66%;
+    --caution-foreground: 210 60% 11%;
+    --unsafe: 0 0% 60%;
+    --unsafe-foreground: 180 10% 95%;
   }
 }
 
@@ -85,7 +126,29 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+  
+  .bg-gradient-navy {
+    background: linear-gradient(180deg, hsl(210 60% 11%) 0%, hsl(210 70% 8%) 100%);
+  }
+  
+  .bg-gradient-card {
+    background: linear-gradient(135deg, hsl(210 50% 15%) 0%, hsl(210 55% 13%) 100%);
   }
 }

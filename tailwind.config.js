@@ -59,6 +59,18 @@ export default {
                     DEFAULT: 'hsl(var(--card))',
                     foreground: 'hsl(var(--card-foreground))'
                 },
+                safe: {
+                    DEFAULT: 'hsl(var(--safe))',
+                    foreground: 'hsl(var(--safe-foreground))'
+                },
+                caution: {
+                    DEFAULT: 'hsl(var(--caution))',
+                    foreground: 'hsl(var(--caution-foreground))'
+                },
+                unsafe: {
+                    DEFAULT: 'hsl(var(--unsafe))',
+                    foreground: 'hsl(var(--unsafe-foreground))'
+                },
                 education: {
                     blue: 'hsl(var(--education-blue))',
                     green: 'hsl(var(--education-green))'

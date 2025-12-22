@@ -1,4 +1,28 @@
-# Welcome to Your Miaoda Project
+# SafeRoute - Travel Safer at Night
+
+## Project Overview
+
+SafeRoute is a hackathon prototype website designed to demonstrate an AI-powered navigation system that helps women choose safer routes when traveling at night. This is a functional demonstration meant to showcase the core safety analysis logic and protective design philosophy.
+
+### Core Features
+
+- **AI-Powered Route Analysis**: Demonstrates how AI evaluates route safety based on multiple factors
+- **Route Comparison**: Compare three route options (Safest, Balanced, Fastest) with safety scores
+- **Safety Analysis Panel**: Natural language explanations powered by Gemini AI
+- **SOS Emergency System**: Quick access to emergency alerts with location sharing
+- **Community Feedback**: Anonymous safety reporting system
+- **Calm Night Safety Design**: Reassuring, non-alarming interface optimized for night use
+
+### Design Philosophy
+
+The website embodies a "Calm Night Safety" theme - designed to feel like a quiet, reliable companion walking beside you at night. It's serious, trustworthy, protective, minimal, and purpose-driven.
+
+**Color Palette:**
+- Deep Navy Blue (#0B1C2D) - Primary background
+- Midnight Blue (#12263A) - Secondary elements
+- Soft Teal/Cyan (#2EC4B6) - Safe route indicators
+- Muted Yellow (#F4D35E) - Caution indicators
+- Red (#E63946) - SOS button only
 
 ## Project Info
 
@@ -35,7 +59,28 @@
 
 ## Tech Stack
 
-Vite, TypeScript, React, Supabase
+Vite, TypeScript, React, shadcn/ui, Tailwind CSS
+
+## How to Use SafeRoute
+
+### Demo Mode
+
+The prototype comes with pre-configured demo data. To experience the full demonstration:
+
+1. **Start the application** (see Development Guidelines below)
+2. **Click "Start Safe Navigation"** on the hero section to scroll to the route planner
+3. **Enter a destination** in the destination field (start location is pre-filled)
+4. **Click "Find Safe Routes"** to generate three route options
+5. **Compare routes** by clicking on different route cards to see safety analysis
+6. **Try the SOS button** (appears after selecting a route) to see the emergency alert system
+7. **Submit feedback** using the Community Safety Feedback section
+
+### Key Interactions
+
+- **Smooth Scrolling**: Click "Try Demo" in the header to jump to the map section
+- **Route Selection**: Click any route card to view detailed safety analysis
+- **SOS Emergency**: The red SOS button appears after route selection
+- **Community Feedback**: Submit anonymous safety reports for areas
 
 ## Development Guidelines
 
@@ -84,8 +129,22 @@ Alternatively, use the official installer: Visit the Node.js official website. D
 
 ### How to develop backend services?
 
-Configure environment variables and install relevant dependencies.If you need to use a database, please use the official version of Supabase.
+This is a prototype demonstration with mock data. No backend services are required for the demo functionality.
+
+## Important Notes
+
+**This is a hackathon prototype for demonstration purposes only.**
+
+- All route data and safety scores are mock data
+- No actual GPS or mapping services are integrated
+- No real emergency services are contacted
+- Community feedback is not stored or processed
+- Designed to demonstrate concept and user experience
 
 ## Learn More
 
 You can also check the help documentation: Download and Building the app（ [https://intl.cloud.baidu.com/en/doc/MIAODA/s/download-and-building-the-app-en](https://intl.cloud.baidu.com/en/doc/MIAODA/s/download-and-building-the-app-en)）to learn more detailed content.
+
+---
+
+**© 2025 SafeRoute** - Hackathon Prototype
