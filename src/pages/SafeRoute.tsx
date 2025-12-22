@@ -8,9 +8,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { googleMapsService, type RouteData } from '@/services/googleMaps';
+import { mockGoogleMapsService, type MockRouteData } from '@/services/mockGoogleMaps';
 import { geminiService, type SafetyAnalysis } from '@/services/gemini';
 import { useToast } from '@/hooks/use-toast';
 import { NavigationDialog } from '@/components/NavigationDialog';
+import { MockMap } from '@/components/MockMap';
 
 export default function SafeRoute() {
   const [selectedRoute, setSelectedRoute] = useState<RouteData | null>(null);
@@ -25,6 +27,7 @@ export default function SafeRoute() {
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [mapInitialized, setMapInitialized] = useState(false);
+  const [useDemoMode, setUseDemoMode] = useState(false);
   
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -36,7 +39,7 @@ export default function SafeRoute() {
     let mounted = true;
     
     const init = async () => {
-      if (mapContainerRef.current && !mapInitialized && mounted) {
+      if (mapContainerRef.current && !mapInitialized && !useDemoMode && mounted) {
         await initializeMap();
       }
     };
@@ -47,7 +50,7 @@ export default function SafeRoute() {
     return () => {
       mounted = false;
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [useDemoMode]); // Re-run if demo mode changes
 
   const initializeMap = async () => {
     if (!mapContainerRef.current) return;
@@ -55,15 +58,18 @@ export default function SafeRoute() {
     try {
       await googleMapsService.initMap(mapContainerRef.current);
       setMapInitialized(true);
+      setUseDemoMode(false);
     } catch (error) {
       console.error('Error initializing map:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Automatically switch to demo mode
+      setUseDemoMode(true);
+      setMapInitialized(true); // Mark as initialized so we don't retry
+      
       toast({
-        title: 'Map Loading Failed',
-        description: errorMessage.includes('API key') 
-          ? 'Google Maps API key is not configured or invalid. Please check the console for details.'
-          : 'Failed to load Google Maps. Please check your internet connection and API key configuration.',
-        variant: 'destructive'
+        title: 'Demo Mode Activated',
+        description: 'Using mock map for demonstration. Set up Google Maps API key for full functionality.',
+        variant: 'default'
       });
     }
   };
@@ -71,12 +77,21 @@ export default function SafeRoute() {
   const handleGetCurrentLocation = async () => {
     setIsLoadingLocation(true);
     try {
-      const location = await googleMapsService.getCurrentLocation();
-      setStartLocation(location.address);
-      toast({
-        title: 'Location Found',
-        description: 'Current location set successfully'
-      });
+      if (useDemoMode) {
+        const location = await mockGoogleMapsService.getCurrentLocation();
+        setStartLocation(location.address);
+        toast({
+          title: 'Location Found (Demo)',
+          description: 'Using mock location for demonstration'
+        });
+      } else {
+        const location = await googleMapsService.getCurrentLocation();
+        setStartLocation(location.address);
+        toast({
+          title: 'Location Found',
+          description: 'Current location set successfully'
+        });
+      }
     } catch (error) {
       console.error('Error getting location:', error);
       toast({
@@ -111,12 +126,34 @@ export default function SafeRoute() {
     setIsLoadingRoutes(true);
     
     try {
-      // Fetch routes from Google Maps
-      const fetchedRoutes = await googleMapsService.getRoutes(
-        startLocation,
-        destination,
-        travelTime
-      );
+      let fetchedRoutes: RouteData[];
+      
+      if (useDemoMode) {
+        // Use mock service in demo mode
+        const mockRoutes = await mockGoogleMapsService.calculateRoutes(startLocation, destination);
+        // Convert mock routes to RouteData format
+        fetchedRoutes = mockRoutes.map((route: MockRouteData, index: number) => ({
+          id: route.id,
+          name: route.name,
+          distance: route.distance,
+          duration: route.duration,
+          safetyScore: route.safetyScore,
+          polyline: route.polyline,
+          steps: route.steps as any, // Mock steps compatible with navigation
+          type: (index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest') as 'safe' | 'balanced' | 'fastest',
+          color: route.safetyScore >= 85 ? '#2EC4B6' : route.safetyScore >= 70 ? '#F4D35E' : '#999999',
+          legs: [],
+          warnings: [],
+          summary: route.name
+        }));
+      } else {
+        // Fetch routes from Google Maps
+        fetchedRoutes = await googleMapsService.getRoutes(
+          startLocation,
+          destination,
+          travelTime
+        );
+      }
 
       if (fetchedRoutes.length === 0) {
         throw new Error('No routes found');
@@ -345,12 +382,16 @@ export default function SafeRoute() {
                     </div>
                   </div>
                 )}
-                {/* Map container - always rendered, React should not manage its children */}
-                <div 
-                  ref={mapContainerRef}
-                  className="w-full h-full"
-                  key="google-map-container"
-                />
+                {/* Map container - show MockMap in demo mode, Google Maps otherwise */}
+                {useDemoMode ? (
+                  <MockMap routes={routes} selectedRoute={selectedRoute} />
+                ) : (
+                  <div 
+                    ref={mapContainerRef}
+                    className="w-full h-full"
+                    key="google-map-container"
+                  />
+                )}
               </div>
             </CardContent>
           </Card>

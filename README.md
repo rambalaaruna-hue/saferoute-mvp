@@ -33,9 +33,22 @@ SafeRoute is a hackathon prototype website designed to demonstrate an AI-powered
 
 ## 🚀 Getting Started
 
-### ⚠️ IMPORTANT: Google Maps Setup Required
+### ⚡ QUICK START - Demo Mode Available!
 
-**The map will not work without proper Google Maps API configuration!**
+**The app now works immediately in Demo Mode!**
+
+If Google Maps API is not configured, the app automatically switches to Demo Mode with:
+- ✅ Mock map visualization
+- ✅ 3 route options with realistic data
+- ✅ AI safety analysis (Gemini)
+- ✅ All UI features functional
+- ✅ Perfect for hackathon demos!
+
+**Just run:** `npm run dev` and start using the app immediately!
+
+### 🗺️ Full Google Maps Setup (Optional)
+
+For production use with real maps:
 
 The API key in the project needs to be configured in Google Cloud Console:
 1. **Enable billing** (required, but $200/month free credit)
@@ -48,7 +61,7 @@ The API key in the project needs to be configured in Google Cloud Console:
 
 ### Prerequisites
 - Node.js 18+ and npm
-- Google Maps API key (see setup guide above)
+- Google Maps API key (optional - demo mode works without it)
 - Gemini API key (optional, for AI analysis)
 
 ### Installation
@@ -58,15 +71,28 @@ The API key in the project needs to be configured in Google Cloud Console:
    npm install
    ```
 
-2. Configure Gemini API key (optional but recommended):
-   - Open `.env` file in the project root
-   - Replace `your_gemini_api_key_here` with your actual Gemini API key
-   - Get your key from: https://makersuite.google.com/app/apikey
-
-3. Start the development server:
+2. **Start the app (Demo Mode works immediately!):**
    ```bash
    npm run dev
    ```
+
+3. Open your browser:
+   ```
+   http://localhost:5173
+   ```
+
+**That's it! The app works in Demo Mode without any API setup!**
+
+4. **(Optional) Configure Gemini API key for AI analysis:**
+   - Open `.env` file in the project root
+   - Replace `your_gemini_api_key_here` with your actual Gemini API key
+   - Get your key from: https://makersuite.google.com/app/apikey
+   - Restart the development server
+
+5. **(Optional) Set up Google Maps for real maps:**
+   - See `SETUP_GOOGLE_MAPS.md` for complete instructions
+   - Takes 5-10 minutes
+   - Requires billing (but $200/month free credit)
 
 ## 📖 Usage Guide
 
