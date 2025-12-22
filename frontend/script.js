@@ -1,3 +1,20 @@
+// TOP OF SCRIPT.JS
+console.log("🚀 SafePath Script is LOADED!");
+
+import { db, collection, addDoc, getDocs } from "./firebase/config.js";
+import { getRouteSafetyAnalysis } from "./backend/gemini.js";
+
+// Check if buttons are found
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("Static UI is ready!");
+    const sosBtn = document.getElementById("sos-btn");
+    if (sosBtn) {
+        console.log("SOS Button found and linked!");
+        sosBtn.addEventListener("click", () => alert("SOS TEST WORKING!"));
+    } else {
+        console.error("SOS Button NOT found. Check your HTML IDs!");
+    }
+});
 // script.js
 import { db, collection, addDoc, getDocs } from "./firebase/config.js";
 import { getRouteSafetyAnalysis } from "./backend/gemini.js";
