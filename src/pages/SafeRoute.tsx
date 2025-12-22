@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,85 +7,150 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-
-// Mock route data
-interface Route {
-  id: string;
-  name: string;
-  type: 'safe' | 'balanced' | 'fastest';
-  distance: string;
-  duration: string;
-  safetyScore: number;
-  color: string;
-  description: string;
-  highlights: string[];
-}
-
-const mockRoutes: Route[] = [
-  {
-    id: '1',
-    name: 'Safest Route',
-    type: 'safe',
-    distance: '2.8 km',
-    duration: '12 min',
-    safetyScore: 92,
-    color: 'safe',
-    description: 'This route maintains higher foot traffic after 9 PM, avoids poorly lit streets, and passes open commercial zones. Community feedback indicates higher perceived safety in this area during night hours.',
-    highlights: [
-      'Well-lit main streets',
-      'Active commercial areas',
-      'Higher foot traffic',
-      'Multiple emergency services nearby'
-    ]
-  },
-  {
-    id: '2',
-    name: 'Balanced Route',
-    type: 'balanced',
-    distance: '2.5 km',
-    duration: '10 min',
-    safetyScore: 78,
-    color: 'caution',
-    description: 'A moderate option balancing time and safety. Some segments have reduced lighting but maintain reasonable pedestrian presence.',
-    highlights: [
-      'Mix of main and side streets',
-      'Moderate foot traffic',
-      'Some well-lit areas'
-    ]
-  },
-  {
-    id: '3',
-    name: 'Fastest Route',
-    type: 'fastest',
-    distance: '2.1 km',
-    duration: '8 min',
-    safetyScore: 54,
-    color: 'unsafe',
-    description: 'Shortest distance but includes isolated areas with minimal lighting and low pedestrian activity during night hours.',
-    highlights: [
-      'Shortest distance',
-      'Less populated areas',
-      'Limited street lighting'
-    ]
-  }
-];
+import { googleMapsService, type RouteData } from '@/services/googleMaps';
+import { geminiService, type SafetyAnalysis } from '@/services/gemini';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SafeRoute() {
-  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<RouteData | null>(null);
+  const [routes, setRoutes] = useState<RouteData[]>([]);
+  const [safetyAnalyses, setSafetyAnalyses] = useState<Map<string, SafetyAnalysis>>(new Map());
   const [showSOS, setShowSOS] = useState(false);
-  const [startLocation, setStartLocation] = useState('123 Main Street, Downtown');
+  const [startLocation, setStartLocation] = useState('');
   const [destination, setDestination] = useState('');
   const [travelTime, setTravelTime] = useState('21:00');
   const [showFeedback, setShowFeedback] = useState(false);
-  const [routesGenerated, setRoutesGenerated] = useState(false);
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [mapInitialized, setMapInitialized] = useState(false);
   
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
-  const handleFindRoutes = () => {
-    if (destination.trim()) {
-      setRoutesGenerated(true);
-      setSelectedRoute(mockRoutes[0]);
+  // Initialize map when component mounts
+  useEffect(() => {
+    if (mapContainerRef.current && !mapInitialized) {
+      initializeMap();
+    }
+  }, [mapInitialized]);
+
+  const initializeMap = async () => {
+    if (!mapContainerRef.current) return;
+
+    try {
+      await googleMapsService.initMap(mapContainerRef.current);
+      setMapInitialized(true);
+    } catch (error) {
+      console.error('Error initializing map:', error);
+      toast({
+        title: 'Map Error',
+        description: 'Failed to initialize map. Please refresh the page.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleGetCurrentLocation = async () => {
+    setIsLoadingLocation(true);
+    try {
+      const location = await googleMapsService.getCurrentLocation();
+      setStartLocation(location.address);
+      toast({
+        title: 'Location Found',
+        description: 'Current location set successfully'
+      });
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast({
+        title: 'Location Error',
+        description: 'Could not get current location. Please enter manually.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingLocation(false);
+    }
+  };
+
+  const handleFindRoutes = async () => {
+    if (!destination.trim()) {
+      toast({
+        title: 'Missing Destination',
+        description: 'Please enter a destination address',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!startLocation.trim()) {
+      toast({
+        title: 'Missing Start Location',
+        description: 'Please enter a start location or use current location',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsLoadingRoutes(true);
+    
+    try {
+      // Fetch routes from Google Maps
+      const fetchedRoutes = await googleMapsService.getRoutes(
+        startLocation,
+        destination,
+        travelTime
+      );
+
+      if (fetchedRoutes.length === 0) {
+        throw new Error('No routes found');
+      }
+
+      setRoutes(fetchedRoutes);
+
+      // Analyze routes with Gemini AI
+      toast({
+        title: 'Routes Found',
+        description: 'Analyzing route safety with AI...'
+      });
+
+      const analyses = await geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime);
+      setSafetyAnalyses(analyses);
+
+      // Update routes with AI-enhanced safety scores
+      const updatedRoutes = fetchedRoutes.map(route => {
+        const analysis = analyses.get(route.id);
+        if (analysis) {
+          return { ...route, safetyScore: analysis.safetyScore };
+        }
+        return route;
+      });
+
+      setRoutes(updatedRoutes);
+      setSelectedRoute(updatedRoutes[0]);
+
+      toast({
+        title: 'Analysis Complete',
+        description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} with safety analysis`,
+      });
+
+    } catch (error) {
+      console.error('Error finding routes:', error);
+      toast({
+        title: 'Route Error',
+        description: error instanceof Error ? error.message : 'Failed to find routes. Please check your addresses.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoadingRoutes(false);
+    }
+  };
+
+  const handleRouteSelect = (route: RouteData) => {
+    setSelectedRoute(route);
+    const routeIndex = routes.findIndex(r => r.id === route.id);
+    if (routeIndex !== -1) {
+      googleMapsService.highlightRoute(routeIndex);
     }
   };
 
@@ -108,6 +173,8 @@ export default function SafeRoute() {
     if (score >= 60) return 'bg-caution/10 border-caution';
     return 'bg-unsafe/10 border-unsafe';
   };
+
+  const currentAnalysis = selectedRoute ? safetyAnalyses.get(selectedRoute.id) : null;
 
   return (
     <div className="min-h-screen bg-gradient-navy">
@@ -173,13 +240,29 @@ export default function SafeRoute() {
                   <MapPin className="w-4 h-4" />
                   Start Location
                 </Label>
-                <Input
-                  id="start"
-                  value={startLocation}
-                  onChange={(e) => setStartLocation(e.target.value)}
-                  placeholder="Your current location"
-                  className="bg-input border-border text-sm xl:text-base"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="start"
+                    value={startLocation}
+                    onChange={(e) => setStartLocation(e.target.value)}
+                    placeholder="Your current location"
+                    className="bg-input border-border text-sm xl:text-base flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleGetCurrentLocation}
+                    disabled={isLoadingLocation}
+                    title="Use current location"
+                  >
+                    {isLoadingLocation ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Navigation className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -212,50 +295,40 @@ export default function SafeRoute() {
               
               <Button 
                 onClick={handleFindRoutes}
-                disabled={!destination.trim()}
+                disabled={!destination.trim() || !startLocation.trim() || isLoadingRoutes}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm xl:text-base"
               >
-                Find Safe Routes
+                {isLoadingRoutes ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Finding Routes...
+                  </>
+                ) : (
+                  'Find Safe Routes'
+                )}
               </Button>
+
+              {!geminiService.isConfigured() && (
+                <p className="text-xs text-muted-foreground text-center">
+                  ⚠️ Gemini API not configured. Using fallback analysis.
+                </p>
+              )}
             </CardContent>
           </Card>
 
           {/* Right Panel - Map View */}
           <Card className="bg-card border-border">
-            <CardContent className="p-4 xl:p-6">
-              <div className="aspect-square xl:aspect-video bg-muted rounded-lg flex items-center justify-center relative overflow-hidden">
-                {!routesGenerated ? (
-                  <div className="text-center space-y-2">
-                    <MapPin className="w-12 h-12 xl:w-16 xl:h-16 text-muted-foreground mx-auto" />
-                    <p className="text-muted-foreground text-sm xl:text-base">Enter destination to view routes</p>
-                  </div>
-                ) : (
-                  <div className="w-full h-full relative">
-                    {/* Mock Map with Routes */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-secondary to-muted">
-                      {/* Route indicators */}
-                      <div className="absolute top-1/4 left-1/4 w-3 h-3 bg-safe rounded-full animate-pulse" />
-                      <div className="absolute top-1/2 left-1/3 w-3 h-3 bg-caution rounded-full animate-pulse" />
-                      <div className="absolute top-2/3 left-1/2 w-3 h-3 bg-unsafe rounded-full animate-pulse" />
-                      
-                      {/* Route lines */}
-                      <svg className="absolute inset-0 w-full h-full">
-                        <path d="M 25% 25% Q 40% 40%, 75% 75%" stroke="hsl(var(--safe))" strokeWidth="3" fill="none" opacity="0.8" />
-                        <path d="M 25% 25% Q 50% 35%, 75% 75%" stroke="hsl(var(--caution))" strokeWidth="3" fill="none" opacity="0.6" />
-                        <path d="M 25% 25% Q 60% 30%, 75% 75%" stroke="hsl(var(--unsafe))" strokeWidth="3" fill="none" opacity="0.4" />
-                      </svg>
-                      
-                      {/* Start and End markers */}
-                      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2">
-                        <div className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium">
-                          Start
-                        </div>
-                      </div>
-                      <div className="absolute top-3/4 left-3/4 -translate-x-1/2 -translate-y-1/2">
-                        <div className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium">
-                          End
-                        </div>
-                      </div>
+            <CardContent className="p-0">
+              <div 
+                ref={mapContainerRef}
+                className="w-full h-[400px] xl:h-[500px] rounded-lg overflow-hidden"
+                style={{ minHeight: '400px' }}
+              >
+                {!mapInitialized && (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <div className="text-center space-y-2">
+                      <Loader2 className="w-12 h-12 xl:w-16 xl:h-16 text-primary mx-auto animate-spin" />
+                      <p className="text-muted-foreground text-sm xl:text-base">Loading map...</p>
                     </div>
                   </div>
                 )}
@@ -266,17 +339,19 @@ export default function SafeRoute() {
       </section>
 
       {/* Safety Analysis Panel */}
-      {selectedRoute && (
+      {selectedRoute && currentAnalysis && (
         <section className="container mx-auto px-4 xl:px-8 py-6 xl:py-8">
           <Card className="bg-card border-border">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-lg xl:text-xl">Why this route is safer</CardTitle>
-                  <CardDescription className="mt-2 text-sm xl:text-base">{selectedRoute.description}</CardDescription>
+                  <CardDescription className="mt-2 text-sm xl:text-base">
+                    {currentAnalysis.description}
+                  </CardDescription>
                 </div>
-                <Badge className={`${getScoreBg(selectedRoute.safetyScore)} ${getScoreColor(selectedRoute.safetyScore)} text-xs xl:text-sm`}>
-                  Safety Score: {selectedRoute.safetyScore}
+                <Badge className={`${getScoreBg(currentAnalysis.safetyScore)} ${getScoreColor(currentAnalysis.safetyScore)} text-xs xl:text-sm`}>
+                  Safety Score: {currentAnalysis.safetyScore}
                 </Badge>
               </div>
             </CardHeader>
@@ -284,16 +359,35 @@ export default function SafeRoute() {
               <div className="space-y-3">
                 <h4 className="font-medium text-sm xl:text-base">Key Safety Features:</h4>
                 <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                  {selectedRoute.highlights.map((highlight, index) => (
+                  {currentAnalysis.highlights.map((highlight, index) => (
                     <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
                       <div className="w-1.5 h-1.5 bg-primary rounded-full" />
                       {highlight}
                     </li>
                   ))}
                 </ul>
+                
+                {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
+                  <>
+                    <h4 className="font-medium text-sm xl:text-base mt-4">Safety Recommendations:</h4>
+                    <ul className="space-y-1">
+                      {currentAnalysis.recommendations.map((rec, index) => (
+                        <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
+                          <div className="w-1.5 h-1.5 bg-accent rounded-full" />
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
                   <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-xs xl:text-sm text-muted-foreground">Powered by Gemini AI</span>
+                  <span className="text-xs xl:text-sm text-muted-foreground">
+                    {geminiService.isConfigured() 
+                      ? 'Powered by Gemini AI' 
+                      : 'Using enhanced safety analysis'}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -302,45 +396,50 @@ export default function SafeRoute() {
       )}
 
       {/* Route Comparison Section */}
-      {routesGenerated && (
+      {routes.length > 0 && (
         <section className="container mx-auto px-4 xl:px-8 py-6 xl:py-8">
           <h3 className="text-xl xl:text-2xl font-bold text-foreground mb-4 xl:mb-6">Compare Routes</h3>
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
-            {mockRoutes.map((route) => (
-              <Card 
-                key={route.id}
-                className={`bg-card border-2 transition-all cursor-pointer hover:shadow-lg ${
-                  selectedRoute?.id === route.id ? 'border-primary' : 'border-border'
-                }`}
-                onClick={() => setSelectedRoute(route)}
-              >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base xl:text-lg">{route.name}</CardTitle>
-                    <Badge className={`${getScoreBg(route.safetyScore)} ${getScoreColor(route.safetyScore)} text-xs`}>
-                      {route.safetyScore}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between text-sm xl:text-base">
-                    <span className="text-muted-foreground">Distance:</span>
-                    <span className="font-medium">{route.distance}</span>
-                  </div>
-                  <div className="flex justify-between text-sm xl:text-base">
-                    <span className="text-muted-foreground">Duration:</span>
-                    <span className="font-medium">{route.duration}</span>
-                  </div>
-                  <Button 
-                    onClick={() => setSelectedRoute(route)}
-                    variant={selectedRoute?.id === route.id ? "default" : "outline"}
-                    className="w-full mt-2 text-xs xl:text-sm"
-                  >
-                    {selectedRoute?.id === route.id ? 'Selected' : 'Select Route'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+            {routes.map((route) => {
+              const analysis = safetyAnalyses.get(route.id);
+              const score = analysis?.safetyScore || route.safetyScore;
+              
+              return (
+                <Card 
+                  key={route.id}
+                  className={`bg-card border-2 transition-all cursor-pointer hover:shadow-lg ${
+                    selectedRoute?.id === route.id ? 'border-primary' : 'border-border'
+                  }`}
+                  onClick={() => handleRouteSelect(route)}
+                >
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base xl:text-lg">{route.name}</CardTitle>
+                      <Badge className={`${getScoreBg(score)} ${getScoreColor(score)} text-xs`}>
+                        {score}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between text-sm xl:text-base">
+                      <span className="text-muted-foreground">Distance:</span>
+                      <span className="font-medium">{route.distance}</span>
+                    </div>
+                    <div className="flex justify-between text-sm xl:text-base">
+                      <span className="text-muted-foreground">Duration:</span>
+                      <span className="font-medium">{route.duration}</span>
+                    </div>
+                    <Button 
+                      onClick={() => handleRouteSelect(route)}
+                      variant={selectedRoute?.id === route.id ? "default" : "outline"}
+                      className="w-full mt-2 text-xs xl:text-sm"
+                    >
+                      {selectedRoute?.id === route.id ? 'Selected' : 'Select Route'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </section>
       )}

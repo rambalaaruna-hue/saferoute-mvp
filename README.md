@@ -1,150 +1,208 @@
 # SafeRoute - Travel Safer at Night
 
-## Project Overview
+SafeRoute is a hackathon prototype website designed to demonstrate an AI-powered navigation system that helps women choose safer routes when traveling at night.
 
-SafeRoute is a hackathon prototype website designed to demonstrate an AI-powered navigation system that helps women choose safer routes when traveling at night. This is a functional demonstration meant to showcase the core safety analysis logic and protective design philosophy.
+## 🎯 Core Purpose
 
-### Core Features
+- Demonstrate how SafeRoute helps women choose safer routes at night using AI-powered safety analysis
+- Visually explain the problem → solution → impact flow
+- Prove that the core logic works with **real Google Maps and Gemini AI integration**
+- Show product thinking and protective design philosophy
 
-- **AI-Powered Route Analysis**: Demonstrates how AI evaluates route safety based on multiple factors
-- **Route Comparison**: Compare three route options (Safest, Balanced, Fastest) with safety scores
-- **Safety Analysis Panel**: Natural language explanations powered by Gemini AI
-- **SOS Emergency System**: Quick access to emergency alerts with location sharing
-- **Community Feedback**: Anonymous safety reporting system
-- **Calm Night Safety Design**: Reassuring, non-alarming interface optimized for night use
+## ✨ Features
 
-### Design Philosophy
+### Real-Time Route Analysis
+- **Google Maps Integration**: Live map with up to 3 alternative routes
+- **AI-Powered Safety Analysis**: Gemini AI analyzes each route for safety factors
+- **Interactive Map**: Custom dark theme with color-coded routes (Green/Teal for safest, Yellow for balanced, Gray for fastest)
+- **Current Location**: One-click geolocation support
 
-The website embodies a "Calm Night Safety" theme - designed to feel like a quiet, reliable companion walking beside you at night. It's serious, trustworthy, protective, minimal, and purpose-driven.
+### Safety Features
+- **Safety Scores**: 0-100 scale based on multiple factors
+- **Natural Language Explanations**: AI-generated descriptions of why routes are safer
+- **Key Safety Highlights**: Lighting, foot traffic, commercial areas, etc.
+- **Personalized Recommendations**: Time-aware safety tips
+- **SOS Emergency Button**: Quick access to emergency features
 
-**Color Palette:**
-- Deep Navy Blue (#0B1C2D) - Primary background
-- Midnight Blue (#12263A) - Secondary elements
-- Soft Teal/Cyan (#2EC4B6) - Safe route indicators
-- Muted Yellow (#F4D35E) - Caution indicators
-- Red (#E63946) - SOS button only
+### User Experience
+- **Single-Page Design**: Smooth scrolling between sections
+- **Loading States**: Clear feedback during route calculation
+- **Toast Notifications**: User-friendly status messages
+- **Responsive Design**: Works on mobile and desktop
+- **Calm Night Safety Theme**: Dark, reassuring color palette
 
-## Project Info
+## 🚀 Getting Started
 
-## Project Directory
+### Prerequisites
+- Node.js 18+ and npm
+- Google Maps API key (already configured)
+- Gemini API key (optional, for AI analysis)
+
+### Installation
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Configure Gemini API key (optional but recommended):
+   - Open `.env` file in the project root
+   - Replace `your_gemini_api_key_here` with your actual Gemini API key
+   - Get your key from: https://makersuite.google.com/app/apikey
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## 📖 Usage Guide
+
+### Finding Safe Routes
+
+1. **Enter Locations**:
+   - Click the navigation icon button to use your current location, OR
+   - Manually enter start location and destination
+
+2. **Set Travel Time**:
+   - Choose your planned travel time (defaults to 21:00 / 9 PM)
+
+3. **Find Routes**:
+   - Click "Find Safe Routes" button
+   - Wait for map to load and routes to be analyzed
+
+4. **Compare Routes**:
+   - View up to 3 routes with safety scores
+   - Read AI-generated safety analysis
+   - Click on route cards to highlight them on the map
+
+5. **Select Your Route**:
+   - Choose the route that best balances safety and convenience
+   - View detailed safety recommendations
+
+### Using the SOS Feature
+- The SOS button appears after selecting a route
+- Click to trigger emergency alert (demo mode)
+- Shows current location and selected route information
+
+### Community Feedback
+- Mark areas as safe or report unsafe areas
+- Anonymous submissions (demo mode)
+- Helps improve future route recommendations
+
+## 🎨 Design Philosophy
+
+**"Calm Night Safety"** - The design is inspired by:
+- Night city lights
+- Police dashboard interfaces
+- Emergency systems
+- Google Material calmness
+
+### Color Palette
+- **Primary**: Deep Navy Blue (#0B1C2D), Midnight Blue (#12263A)
+- **Safe Indicators**: Soft Teal/Cyan (#2EC4B6)
+- **Caution**: Muted Yellow (#F4D35E)
+- **Emergency**: Red (#E63946) - used only for SOS button
+
+### Emotional Tone
+Reassuring, non-alarming, protective, empowering, serious, trustworthy, calm, purpose-driven
+
+## 🔧 Technical Stack
+
+- **Frontend**: React 18 + TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **Build Tool**: Vite
+- **Maps**: Google Maps JavaScript API
+- **AI**: Google Gemini Pro API
+- **State Management**: React Hooks
+
+## 📁 Project Structure
 
 ```
-├── README.md # Documentation
-├── components.json # Component library configuration
-├── index.html # Entry file
-├── package.json # Package management
-├── postcss.config.js # PostCSS configuration
-├── public # Static resources directory
-│   ├── favicon.png # Icon
-│   └── images # Image resources
-├── src # Source code directory
-│   ├── App.tsx # Entry file
-│   ├── components # Components directory
-│   ├── context # Context directory
-│   ├── db # Database configuration directory
-│   ├── hooks # Common hooks directory
-│   ├── index.css # Global styles
-│   ├── layout # Layout directory
-│   ├── lib # Utility library directory
-│   ├── main.tsx # Entry file
-│   ├── routes.tsx # Routing configuration
-│   ├── pages # Pages directory
-│   ├── services # Database interaction directory
-│   ├── types # Type definitions directory
-├── tsconfig.app.json # TypeScript frontend configuration file
-├── tsconfig.json # TypeScript configuration file
-├── tsconfig.node.json # TypeScript Node.js configuration file
-└── vite.config.ts # Vite configuration file
+src/
+├── components/
+│   └── ui/              # shadcn/ui components
+├── pages/
+│   └── SafeRoute.tsx    # Main application page
+├── services/
+│   ├── googleMaps.ts    # Google Maps integration
+│   └── gemini.ts        # Gemini AI integration
+├── hooks/
+│   └── use-toast.tsx    # Toast notification hook
+└── index.css            # Global styles and theme
 ```
 
-## Tech Stack
+## 🔑 API Configuration
 
-Vite, TypeScript, React, shadcn/ui, Tailwind CSS
+### Google Maps API (Already Configured ✅)
+The Google Maps API key is pre-configured in the `.env` file. The following APIs are enabled:
+- Maps JavaScript API
+- Directions API
+- Geocoding API
+- Places API
 
-## How to Use SafeRoute
+### Gemini AI API (User Configuration Required)
+To enable AI-powered safety analysis:
 
-### Demo Mode
+1. Get your API key from https://makersuite.google.com/app/apikey
+2. Open `.env` file in the project root
+3. Update: `VITE_GEMINI_API_KEY=your_actual_key_here`
+4. Restart the development server
 
-The prototype comes with pre-configured demo data. To experience the full demonstration:
+**Note**: The app works without Gemini API key using fallback analysis.
 
-1. **Start the application** (see Development Guidelines below)
-2. **Click "Start Safe Navigation"** on the hero section to scroll to the route planner
-3. **Enter a destination** in the destination field (start location is pre-filled)
-4. **Click "Find Safe Routes"** to generate three route options
-5. **Compare routes** by clicking on different route cards to see safety analysis
-6. **Try the SOS button** (appears after selecting a route) to see the emergency alert system
-7. **Submit feedback** using the Community Safety Feedback section
+## 📚 Documentation
 
-### Key Interactions
+- **INTEGRATION_GUIDE.md**: Detailed guide for API integration and usage
+- **TODO.md**: Development progress and notes
 
-- **Smooth Scrolling**: Click "Try Demo" in the header to jump to the map section
-- **Route Selection**: Click any route card to view detailed safety analysis
-- **SOS Emergency**: The red SOS button appears after route selection
-- **Community Feedback**: Submit anonymous safety reports for areas
+## 🎯 Demo Mode
 
-## Development Guidelines
+The application includes demo-friendly features:
+- Real-time route calculation with Google Maps
+- AI-powered safety analysis with Gemini
+- Fast response times
+- Clear visual feedback
+- Smooth transitions
+- Easy-to-understand safety scores
 
-### How to edit code locally?
+## 🐛 Troubleshooting
 
-You can choose [VSCode](https://code.visualstudio.com/Download) or any IDE you prefer. The only requirement is to have Node.js and npm installed.
+### Map Not Loading
+- Check Google Maps API key in `.env`
+- Ensure required APIs are enabled in Google Cloud Console
+- Check browser console for errors
 
-### Environment Requirements
+### No Routes Found
+- Use specific addresses (include city/state)
+- Verify both start and destination are valid
+- Try well-known locations first (e.g., "Times Square, New York")
 
-```
-# Node.js ≥ 20
-# npm ≥ 10
-Example:
-# node -v   # v20.18.3
-# npm -v    # 10.8.2
-```
+### Gemini AI Not Working
+- Add your Gemini API key to `.env`
+- Restart the development server
+- App will use fallback analysis if key is missing
 
-### Installing Node.js on Windows
+### Current Location Not Working
+- Allow location access in browser
+- Use HTTPS or localhost
+- Check browser console for errors
 
-```
-# Step 1: Visit the Node.js official website: https://nodejs.org/, click download. The website will automatically suggest a suitable version (32-bit or 64-bit) for your system.
-# Step 2: Run the installer: Double-click the downloaded installer to run it.
-# Step 3: Complete the installation: Follow the installation wizard to complete the process.
-# Step 4: Verify installation: Open Command Prompt (cmd) or your IDE terminal, and type `node -v` and `npm -v` to check if Node.js and npm are installed correctly.
-```
+## ⚠️ Important Notes
 
-### Installing Node.js on macOS
+- This is a **prototype for demonstration purposes only**
+- Built for hackathon presentation (3-5 minute demo)
+- Real-time route calculation and AI analysis are functional
+- Mock data used for community feedback and SOS features
+- Not intended for production use
 
-```
-# Step 1: Using Homebrew (Recommended method): Open Terminal. Type the command `brew install node` and press Enter. If Homebrew is not installed, you need to install it first by running the following command in Terminal:
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-Alternatively, use the official installer: Visit the Node.js official website. Download the macOS .pkg installer. Open the downloaded .pkg file and follow the prompts to complete the installation.
-# Step 2: Verify installation: Open Command Prompt (cmd) or your IDE terminal, and type `node -v` and `npm -v` to check if Node.js and npm are installed correctly.
-```
+## 📄 License
 
-### After installation, follow these steps:
+This is a hackathon prototype project.
 
-```
-# Step 1: Download the code package
-# Step 2: Extract the code package
-# Step 3: Open the code package with your IDE and navigate into the code directory
-# Step 4: In the IDE terminal, run the command to install dependencies: npm i
-# Step 5: In the IDE terminal, run the command to start the development server: npm run dev -- --host 127.0.0.1
-# Step 6: if step 5 failed, try this command to start the development server: npx vite --host 127.0.0.1
-```
+## 👥 Team
 
-### How to develop backend services?
-
-This is a prototype demonstration with mock data. No backend services are required for the demo functionality.
-
-## Important Notes
-
-**This is a hackathon prototype for demonstration purposes only.**
-
-- All route data and safety scores are mock data
-- No actual GPS or mapping services are integrated
-- No real emergency services are contacted
-- Community feedback is not stored or processed
-- Designed to demonstrate concept and user experience
-
-## Learn More
-
-You can also check the help documentation: Download and Building the app（ [https://intl.cloud.baidu.com/en/doc/MIAODA/s/download-and-building-the-app-en](https://intl.cloud.baidu.com/en/doc/MIAODA/s/download-and-building-the-app-en)）to learn more detailed content.
+SafeRoute - Hackathon Prototype 2025
 
 ---
 
-**© 2025 SafeRoute** - Hackathon Prototype
+**Prototype for demonstration only**
