@@ -15,9 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error("SOS Button NOT found. Check your HTML IDs!");
     }
 });
-// script.js
-import { db, collection, addDoc, getDocs } from "./firebase/config.js";
-import { getRouteSafetyAnalysis } from "./backend/gemini.js";
 
 // Global Variables
 let map, directionsService, directionsRenderer;
