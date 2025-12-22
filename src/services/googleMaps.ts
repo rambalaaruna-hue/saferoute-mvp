@@ -96,13 +96,14 @@ function loadGoogleMapsScript(): Promise<void> {
 
     // Create and load the script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry&callback=initGoogleMaps`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,geometry,directions&callback=initGoogleMaps&v=beta`;
     script.async = true;
     script.defer = true;
+    script.referrerPolicy = 'no-referrer-when-downgrade';
     
     // Add global callback for Google Maps
     (window as any).initGoogleMaps = () => {
-      console.log('Google Maps loaded successfully');
+      console.log('✅ Google Maps loaded successfully');
       delete (window as any).initGoogleMaps;
       script.removeEventListener('error', onError);
       resolve();
