@@ -33,9 +33,22 @@ SafeRoute is a hackathon prototype website designed to demonstrate an AI-powered
 
 ## 🚀 Getting Started
 
+### ⚠️ IMPORTANT: Google Maps Setup Required
+
+**The map will not work without proper Google Maps API configuration!**
+
+The API key in the project needs to be configured in Google Cloud Console:
+1. **Enable billing** (required, but $200/month free credit)
+2. **Enable 4 required APIs** (Maps JavaScript, Directions, Places, Geocoding)
+3. **Configure API key restrictions** for localhost
+
+**📖 Complete setup guide:** See `SETUP_GOOGLE_MAPS.md` for step-by-step instructions (5 minutes)
+
+**🧪 Quick test:** Open `http://localhost:5173/simple-test.html` to see what's wrong
+
 ### Prerequisites
 - Node.js 18+ and npm
-- Google Maps API key (already configured)
+- Google Maps API key (see setup guide above)
 - Gemini API key (optional, for AI analysis)
 
 ### Installation
