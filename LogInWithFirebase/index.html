@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer type="module" src="firebase-config.js"></script>
+    <link href='https://cdn.boxicons.com/3.0.6/fonts/basic/boxicons.min.css' rel='stylesheet'>
+</head>
+<body>
+    <form class="main" >
+        
+        <div class="appname">
+            <i class='bx  bx-shield'></i>
+            <h1>SafeRoute</h1>
+        </div>
+        <div class="inputbox">
+            <input type="email" id="email" placeholder="Email">
+            <i class='bx  bx-user'></i> 
+        </div>
+        <div class="inputbox">
+            <input type="password" id="password" placeholder="Password">
+            <i class='bx  bx-lock'></i> 
+        </div>
+        <div class="remember-forgot">
+            <label><input type="checkbox"> Remember Me</label>
+            <a href="#">Forgot Password?</a>
+        </div>
+        <button type="submit" class="LogIn" id="loginForm">Log In</button>
+        <div class="register-link">
+            <p>Don't have an account? <a href="#">Register</a></p>
+        </div>
+        <div class="or">
+            <p>OR</p>
+        </div>
+        
+        <div class="Google">
+            <button class="LogIn" id="googleSignIn">SignIn with Google</button>
+            <div class="googlelogo"><img src="https://static.dezeen.com/uploads/2025/05/sq-google-g-logo-update_dezeen_2364_col_0.jpg"></div>
+        </div>
+        <div class="GitHub">
+            <button type="button" class="LogIn">SignIn with GitHub</button>
+            <div class="githublogo"><img src="https://images.icon-icons.com/3685/PNG/512/github_logo_icon_229278.png"></div>
+        </div>
+
+    </form>
+    <div id="message"></div>
+    
+</body>
+</html>
