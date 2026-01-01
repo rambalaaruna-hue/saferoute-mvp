@@ -1,5 +1,9 @@
-import SafeRoute from './pages/SafeRoute';
 import type { ReactNode } from 'react';
+
+import SafeRoute from './pages/SafeRoute';
+import Login from './pages/Login';
+import NotFound from './pages/NotFound';
+import { ProtectedRoute } from './components/common/ProtectedRoute';
 
 interface RouteConfig {
   name: string;
@@ -10,9 +14,22 @@ interface RouteConfig {
 
 const routes: RouteConfig[] = [
   {
+    name: 'Login',
+    path: '/login',
+    element: <Login />,
+    visible: false
+  },
+  {
     name: 'SafeRoute',
     path: '/',
-    element: <SafeRoute />
+    element: <ProtectedRoute><SafeRoute /></ProtectedRoute>,
+    visible: true
+  },
+  {
+    name: 'NotFound',
+    path: '*',
+    element: <NotFound />,
+    visible: false
   }
 ];
 

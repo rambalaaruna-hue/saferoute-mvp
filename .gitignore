@@ -31,3 +31,5 @@ history/*.json
 # Remote additions
 .env
 firebase-debug.log
+node_modules
+node_modules
