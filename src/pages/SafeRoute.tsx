@@ -107,7 +107,10 @@ export default function SafeRoute() {
   const [showThankYou, setShowThankYou] = useState(false);
   
   // SOS Feature State
-  const [sosSettings, setSosSettings] = useState<SosSettings>(DEFAULT_SOS_SETTINGS);
+  const [sosSettings, setSosSettings] = useState<SosSettings>(() => {
+    const savedSettings = localStorage.getItem(SOS_SETTINGS_KEY);
+    return savedSettings ? JSON.parse(savedSettings) : DEFAULT_SOS_SETTINGS;
+  });
   const [lastCoords, setLastCoords] = useState<GeolocationCoordinates | null>(null);
   const [lastAddress, setLastAddress] = useState<string | null>(null);
   const [sosMenuOpen, setSosMenuOpen] = useState(false);
@@ -908,11 +911,14 @@ export default function SafeRoute() {
   };
 
   function handleSosSettingsChange<K extends keyof SosSettings>(key: K, value: SosSettings[K]) {
-    setSosSettings((s) => ({ ...s, [key]: value }));
+    const updatedSettings = { ...sosSettings, [key]: value };
+    setSosSettings(updatedSettings);
+    localStorage.setItem(SOS_SETTINGS_KEY, JSON.stringify(updatedSettings));
   }
   
   function resetSosSettings() {
     if (!window.confirm('Reset settings to defaults?')) return;
+    localStorage.removeItem(SOS_SETTINGS_KEY);
     setSosSettings(DEFAULT_SOS_SETTINGS);
   }
 
@@ -1621,9 +1627,9 @@ export default function SafeRoute() {
               <>
                 {/* Location Successfully Detected */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span className="font-medium text-green-400">Location Detected</span>
+                    <span className="text-sm font-medium text-green-400">Location Detected</span>
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                     <MapPinned className="w-4 h-4" />
