@@ -12,21 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { googleMapsService, type RouteData, type TravelMode } from '@/services/googleMaps';
 import { mockGoogleMapsService, type MockRouteData } from '@/services/mockGoogleMaps';
 import { geminiService, type SafetyAnalysis } from '@/services/gemini';
-import { 
-  safetyScorer, 
-  parseDistanceToKm, 
-  parseDurationToMin, 
+import {
+  safetyScorer,
+  parseDistanceToKm,
+  parseDurationToMin,
   detectRoadType,
   estimateLightingLevel,
   getCrimeLevelForLocation,
   type RouteInputData,
   type EnvironmentData
 } from '@/services/safetyScorer';
-import { 
+import {
   firebaseSafetyService,
   getGridId,
   type AreaReport,
-  type SafetyRatings 
+  type SafetyRatings
 } from '@/services/firebaseSafety';
 import { useToast } from '@/hooks/use-toast';
 import { NavigationDialog } from '@/components/NavigationDialog';
@@ -79,7 +79,7 @@ export default function SafeRoute() {
   const [feedbackType, setFeedbackType] = useState<'safe' | 'unsafe' | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
-  
+
   // Safety ratings state
   const [lightingRating, setLightingRating] = useState(0);
   const [crowdednessRating, setCrowdednessRating] = useState(0);
@@ -105,7 +105,7 @@ export default function SafeRoute() {
   const [isLoadingAppFeedback, setIsLoadingAppFeedback] = useState(false);
   const [isSubmittingAppFeedback, setIsSubmittingAppFeedback] = useState(false);
   const [showThankYou, setShowThankYou] = useState(false);
-  
+
   // SOS Feature State
   const [sosSettings, setSosSettings] = useState<SosSettings>(() => {
     const savedSettings = localStorage.getItem(SOS_SETTINGS_KEY);
@@ -116,7 +116,7 @@ export default function SafeRoute() {
   const [sosMenuOpen, setSosMenuOpen] = useState(false);
   const [sosSettingsOpen, setSosSettingsOpen] = useState(false);
   const holdTimerRef = useRef<number | null>(null);
-  
+
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -145,15 +145,15 @@ export default function SafeRoute() {
   // Initialize map when component mounts
   useEffect(() => {
     let mounted = true;
-    
+
     const init = async () => {
       if (mapContainerRef.current && !mapInitialized && !useDemoMode && mounted) {
         await initializeMap();
       }
     };
-    
+
     init();
-    
+
     // Cleanup function - but don't remove the map or script
     return () => {
       mounted = false;
@@ -169,11 +169,11 @@ export default function SafeRoute() {
       setUseDemoMode(false);
     } catch (error) {
       console.error('Error initializing map:', error);
-      
+
       // Automatically switch to demo mode
       setUseDemoMode(true);
       setMapInitialized(true); // Mark as initialized so we don't retry
-      
+
       toast({
         title: 'Demo Mode Activated',
         description: 'Using mock map for demonstration. Set up Google Maps API key for full functionality.',
@@ -232,10 +232,10 @@ export default function SafeRoute() {
     }
 
     setIsLoadingRoutes(true);
-    
+
     try {
       let fetchedRoutes: RouteData[];
-      
+
       if (useDemoMode) {
         // Use mock service in demo mode
         const mockRoutes = await mockGoogleMapsService.calculateRoutes(startLocation, destination, travelMode);
@@ -260,7 +260,7 @@ export default function SafeRoute() {
           console.log('🗺️ Map not initialized, initializing now...');
           await initializeMap();
         }
-        
+
         // Fetch routes from Google Maps
         fetchedRoutes = await googleMapsService.getRoutes(
           startLocation,
@@ -268,12 +268,12 @@ export default function SafeRoute() {
           travelTime,
           travelMode
         );
-        
+
         // If Google Maps returns fewer than 3 routes, we still show what we have
         // We DON'T create fake duplicates - that would be misleading
         // Google Maps returns alternative routes only when they are genuinely different
         console.log(`📍 Google Maps returned ${fetchedRoutes.length} route(s)`);
-        
+
         // Rename routes based on their position if needed
         fetchedRoutes = fetchedRoutes.map((route, index) => ({
           ...route,
@@ -303,14 +303,14 @@ export default function SafeRoute() {
         const distanceKm = parseDistanceToKm(route.distance);
         const durationMin = parseDurationToMin(route.duration);
         const turnCount = route.steps?.length || 5;
-        
+
         // Detect road type from route summary/steps
         const routeSummary = route.summary || route.name || '';
         const roadType = detectRoadType(routeSummary);
-        
+
         // Get crime level for destination area
         const crimeLevel = getCrimeLevelForLocation(destination);
-        
+
         // Estimate lighting based on road type and SELECTED time
         const lightingLevel = estimateLightingLevel(roadType, selectedHour);
 
@@ -419,9 +419,9 @@ export default function SafeRoute() {
   };
 
   // ============== COMMUNITY FEEDBACK HANDLERS ==============
-  
+
   const [feedbackEligibility, setFeedbackEligibility] = useState<{ canSubmit: boolean; hoursRemaining?: number; message?: string } | null>(null);
-  
+
   const handleOpenFeedback = async (type: 'safe' | 'unsafe') => {
     setFeedbackType(type);
     setFeedbackText('');
@@ -433,29 +433,29 @@ export default function SafeRoute() {
     setPublicTransportRating(0);
     setEmergencyAccessRating(0);
     setOverallSafetyScore(0);
-    
+
     setIsGettingLocation(true);
     setShowFeedback(true);
     setFeedbackEligibility(null);
-    
+
     try {
       // Get user's current location
       const location = await firebaseSafetyService.getCurrentLocation();
       setUserLocation(location);
-      
+
       // Get current area safety score
       const gridId = getGridId(location.lat, location.lng);
       const score = await firebaseSafetyService.getAreaSafetyScore(gridId);
       setCurrentAreaScore(score);
-      
+
       // Check if user can submit feedback (24-hour cooldown)
       const eligibility = await firebaseSafetyService.checkFeedbackEligibility(gridId);
       setFeedbackEligibility(eligibility);
-      
+
       // Get recent reports for this area
       const reports = await firebaseSafetyService.getAreaReports(gridId, 5);
       setAreaReports(reports);
-      
+
     } catch (error) {
       console.error('Error getting location:', error);
       toast({
@@ -477,7 +477,7 @@ export default function SafeRoute() {
       });
       return;
     }
-    
+
     // Validate compulsory ratings
     if (lightingRating === 0 || crowdednessRating === 0 || roadConditionRating === 0) {
       toast({
@@ -487,7 +487,7 @@ export default function SafeRoute() {
       });
       return;
     }
-    
+
     // Validate overall safety score
     if (overallSafetyScore === 0) {
       toast({
@@ -497,9 +497,9 @@ export default function SafeRoute() {
       });
       return;
     }
-    
+
     setIsSubmittingFeedback(true);
-    
+
     try {
       // Prepare ratings object
       const ratings: SafetyRatings = {
@@ -511,7 +511,7 @@ export default function SafeRoute() {
         emergencyAccess: emergencyAccessRating,
         overallSafetyScore: overallSafetyScore,
       };
-      
+
       const result = await firebaseSafetyService.submitSafetyFeedback(
         userLocation.lat,
         userLocation.lng,
@@ -519,18 +519,18 @@ export default function SafeRoute() {
         feedbackText.trim() || undefined,
         ratings
       );
-      
+
       if (result.success) {
         toast({
           title: feedbackType === 'safe' ? '✓ Area Marked Safe' : '⚠ Area Reported',
           description: result.message,
         });
-        
+
         // Update local state with new score
         if (result.newSafetyScore !== undefined) {
           setCurrentAreaScore(result.newSafetyScore);
         }
-        
+
         // Close dialog and reset all states
         setShowFeedback(false);
         setFeedbackType(null);
@@ -543,7 +543,7 @@ export default function SafeRoute() {
         setPublicTransportRating(0);
         setEmergencyAccessRating(0);
         setOverallSafetyScore(0);
-        
+
       } else {
         toast({
           title: 'Feedback Error',
@@ -590,12 +590,12 @@ export default function SafeRoute() {
     const encoded = encodeURIComponent(text || '');
     return `whatsapp://send?phone=${phone}&text=${encoded}`;
   }
-  
+
   function buildWhatsAppWebUrl(phone: string, text?: string) {
     const encoded = encodeURIComponent(text || '');
     return `https://web.whatsapp.com/send?phone=${phone}&text=${encoded}`;
   }
-  
+
   function buildWhatsAppWaMeUrl(phone: string, text?: string) {
     const encoded = encodeURIComponent(text || '');
     return `https://wa.me/${phone}?text=${encoded}`;
@@ -727,6 +727,9 @@ export default function SafeRoute() {
     let msg = sosSettings.messageTemplate || DEFAULT_SOS_SETTINGS.messageTemplate;
     msg = msg.replace('{maps}', maps);
     msg = msg.replace('{address}', address || (lastAddress || ''));
+    if (!coords && !address) {
+      msg += " (Location unavailable)";
+    }
     return msg;
   }
 
@@ -737,7 +740,7 @@ export default function SafeRoute() {
   async function handleSosClick() {
     // Open the SOS menu IMMEDIATELY - don't wait for location
     setSosMenuOpen(true);
-    
+
     // Fetch location in the background
     getSosLocation().then((coords) => {
       setLastCoords(coords);
@@ -770,11 +773,14 @@ export default function SafeRoute() {
     let coords = lastCoords;
     let addr = lastAddress;
     if (!coords) {
+      // Force fetch location for quick send
       coords = await getSosLocation();
-      setLastCoords(coords);
-      if (coords && sosSettings.useNominatim) {
-        addr = await tryReverseGeocode(coords.latitude, coords.longitude);
-        setLastAddress(addr);
+      if (coords) {
+        setLastCoords(coords);
+        if (sosSettings.useNominatim) {
+          addr = await tryReverseGeocode(coords.latitude, coords.longitude);
+          setLastAddress(addr);
+        }
       }
     }
 
@@ -798,10 +804,10 @@ export default function SafeRoute() {
         try {
           tempWin.location.href = buildWhatsAppAppUrl(phone, text);
         } catch (e) {
-          try { tempWin.location.href = buildWhatsAppWebUrl(phone, text); } catch {}
+          try { tempWin.location.href = buildWhatsAppWebUrl(phone, text); } catch { }
         }
         setTimeout(() => {
-          try { tempWin!.location.href = buildWhatsAppWebUrl(phone, text); } catch {}
+          try { tempWin!.location.href = buildWhatsAppWebUrl(phone, text); } catch { }
         }, 900);
         return;
       }
@@ -820,15 +826,29 @@ export default function SafeRoute() {
   function actionCallPolice() {
     openDial(sosSettings.police);
   }
-  
+
   function actionCallAmbulance() {
     openDial(sosSettings.ambulance);
   }
 
-  async function actionWhatsApp() {
-    const text = buildSosMessage(lastAddress);
+  async function actionWhatsApp(specificNumber?: string) {
+    let coords = lastCoords;
+    if (!coords) {
+      toast({ title: "Locating...", description: "Getting your precise location." });
+      coords = await getSosLocation();
+      if (coords) setLastCoords(coords);
+    }
 
-    if (navigator.share && isMobileDevice()) {
+    // Refresh address if we have coords but no address
+    let address = lastAddress;
+    if (coords && !address && sosSettings.useNominatim) {
+      address = await tryReverseGeocode(coords.latitude, coords.longitude);
+      if (address) setLastAddress(address);
+    }
+
+    const text = buildMessageFrom(coords, address);
+
+    if (navigator.share && isMobileDevice() && !specificNumber) {
       try {
         await navigator.share({ text });
         return;
@@ -842,34 +862,96 @@ export default function SafeRoute() {
       alert('No Emergency WhatsApp contact configured. Add contact in Settings.');
       return;
     }
+
+    // If a specific number is requested (e.g. from the list buttons)
+    if (specificNumber) {
+      openWhatsAppAppWithFallback(specificNumber, text);
+      return;
+    }
+
+    // "Send to all" logic
     if (numbers.length === 1) {
       openWhatsAppAppWithFallback(numbers[0], text);
       return;
     }
 
     if (!window.confirm(`Open WhatsApp chats for ${numbers.length} emergency contacts in new tabs/windows? Your browser may block popups.`)) return;
+
+    // sequential open
     for (let i = 0; i < numbers.length; i++) {
       openWhatsAppAppWithFallback(numbers[i], text);
-      await new Promise((res) => setTimeout(res, 600));
+      // Wait a bit longer between opens to help with browser throttling
+      await new Promise((res) => setTimeout(res, 1000));
     }
   }
 
   async function actionEmail() {
     const subject = 'Emergency Help Needed';
-    const body = buildSosMessage(lastAddress);
+
+    let coords = lastCoords;
+    if (!coords) {
+      coords = await getSosLocation();
+      if (coords) setLastCoords(coords);
+    }
+
+    // Refresh address
+    let address = lastAddress;
+    if (coords && !address && sosSettings.useNominatim) {
+      address = await tryReverseGeocode(coords.latitude, coords.longitude);
+      if (address) setLastAddress(address);
+    }
+
+    const body = buildMessageFrom(coords, address);
     const emails = getEmails();
     if (emails.length === 0) {
       alert('No Emergency Email configured. Add in Settings');
       return;
     }
     const to = emails.join(',');
+
+    // On mobile, prioritize native app (faster and more reliable)
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    if (isMobileDevice()) {
+      window.location.href = mailto;
+      return;
+    }
+
+    // On desktop, try Gmail web first as it's often preferred
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
     const win = window.open(gmailUrl, '_blank');
     if (!win) {
-      const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       window.location.href = mailto;
     }
+  }
+
+  async function actionSMS() {
+    let coords = lastCoords;
+    if (!coords) {
+      coords = await getSosLocation();
+      if (coords) setLastCoords(coords);
+    }
+
+    // Refresh address if needed
+    let address = lastAddress;
+    if (coords && !address && sosSettings.useNominatim) {
+      address = await tryReverseGeocode(coords.latitude, coords.longitude);
+      if (address) setLastAddress(address);
+    }
+
+    const text = buildMessageFrom(coords, address);
+    const numbers = getWhatsappNumbers(); // reuse whatsapp numbers for SMS
+
+    if (numbers.length === 0) {
+      alert('No contacts configured. Add specific numbers in Settings.');
+      return;
+    }
+
+    const separator = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? '&' : '?';
+    // Most modern phones accept comma for multiple recipients in sms: protocol
+    const allNumbers = numbers.join(',');
+
+    window.location.href = `sms:${allNumbers}${separator}body=${encodeURIComponent(text)}`;
   }
 
   async function actionCopyLocation() {
@@ -915,7 +997,7 @@ export default function SafeRoute() {
     setSosSettings(updatedSettings);
     localStorage.setItem(SOS_SETTINGS_KEY, JSON.stringify(updatedSettings));
   }
-  
+
   function resetSosSettings() {
     if (!window.confirm('Reset settings to defaults?')) return;
     localStorage.removeItem(SOS_SETTINGS_KEY);
@@ -946,17 +1028,17 @@ export default function SafeRoute() {
             <h1 className="text-xl xl:text-2xl font-bold text-foreground">SafeRoute</h1>
           </div>
           <div className="flex items-center gap-2 xl:gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowVision(true)} 
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowVision(true)}
               className="text-xs xl:text-sm gap-1"
             >
               <Eye className="w-4 h-4" />
               <span className="hidden sm:inline">Our Vision</span>
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               size="sm"
               onClick={() => { handleSosClick(); }}
               onPointerDown={startHold}
@@ -983,8 +1065,8 @@ export default function SafeRoute() {
           <p className="text-sm xl:text-base text-primary font-medium">
             Your safety is our priority. Navigate with confidence.
           </p>
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             onClick={scrollToMap}
             className="bg-primary hover:bg-primary/90 text-primary-foreground mt-4 xl:mt-6 text-sm xl:text-base"
           >
@@ -1032,7 +1114,7 @@ export default function SafeRoute() {
                   </Button>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="destination" className="flex items-center gap-2 text-sm xl:text-base">
                   <MapPin className="w-4 h-4" />
@@ -1046,7 +1128,7 @@ export default function SafeRoute() {
                   className="bg-input border-border text-sm xl:text-base"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="time" className="flex items-center gap-2 text-sm xl:text-base">
                   <Clock className="w-4 h-4" />
@@ -1060,7 +1142,7 @@ export default function SafeRoute() {
                   className="bg-input border-border text-sm xl:text-base"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label className="flex items-center gap-2 text-sm xl:text-base">
                   <Car className="w-4 h-4" />
@@ -1098,8 +1180,8 @@ export default function SafeRoute() {
                   </SelectContent>
                 </Select>
               </div>
-              
-              <Button 
+
+              <Button
                 onClick={handleFindRoutes}
                 disabled={!destination.trim() || !startLocation.trim() || isLoadingRoutes}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm xl:text-base"
@@ -1139,7 +1221,7 @@ export default function SafeRoute() {
                 {useDemoMode ? (
                   <MockMap routes={routes} selectedRoute={selectedRoute} />
                 ) : (
-                  <div 
+                  <div
                     ref={mapContainerRef}
                     className="w-full h-full"
                     key="google-map-container"
@@ -1168,7 +1250,7 @@ export default function SafeRoute() {
                     const score = currentAnalysis.safetyScore || 70;
                     const category = score >= 75 ? { label: 'Safest Option', color: 'bg-green-500/20 text-green-400 border-green-500/50' }
                       : score >= 58 ? { label: 'Moderate Option', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' }
-                      : { label: 'Least Safe Option', color: 'bg-orange-500/20 text-orange-400 border-orange-500/50' };
+                        : { label: 'Least Safe Option', color: 'bg-orange-500/20 text-orange-400 border-orange-500/50' };
                     return (
                       <>
                         <Badge className={`${category.color} border text-sm xl:text-base font-bold px-3 py-1`}>
@@ -1191,77 +1273,77 @@ export default function SafeRoute() {
                 {/* Score Calculation Breakdown */}
                 {currentAnalysis.riskFactors && (() => {
                   const rf = currentAnalysis.riskFactors;
-                  
+
                   // Get selected hour for display
                   const selectedHour = parseInt(travelTime.split(':')[0], 10);
-                  const timeLabel = selectedHour >= 22 || selectedHour <= 5 
-                    ? `Late night (${travelTime})` 
-                    : selectedHour >= 19 || selectedHour <= 7 
-                    ? `Evening/morning (${travelTime})` 
-                    : `Daytime (${travelTime})`;
-                  
+                  const timeLabel = selectedHour >= 22 || selectedHour <= 5
+                    ? `Late night (${travelTime})`
+                    : selectedHour >= 19 || selectedHour <= 7
+                      ? `Evening/morning (${travelTime})`
+                      : `Daytime (${travelTime})`;
+
                   // Calculate actual points for each factor (points = (1 - risk) * weight * 100)
                   const factors = [
-                    { 
-                      name: 'Crime Risk', 
+                    {
+                      name: 'Crime Risk',
                       emoji: '🚨',
-                      weight: 25, 
+                      weight: 25,
                       risk: rf.crimeRisk,
                       points: Math.round((1 - rf.crimeRisk) * 25),
                       description: rf.crimeRisk <= 0.3 ? 'Low crime area' : rf.crimeRisk <= 0.6 ? 'Moderate crime area' : 'Higher crime area'
                     },
-                    { 
-                      name: 'Lighting', 
+                    {
+                      name: 'Lighting',
                       emoji: '💡',
-                      weight: 15, 
+                      weight: 15,
                       risk: rf.lightingRisk,
                       points: Math.round((1 - rf.lightingRisk) * 15),
                       description: rf.lightingRisk <= 0.3 ? 'Well-lit streets' : rf.lightingRisk <= 0.6 ? 'Partially lit' : 'Limited lighting'
                     },
-                    { 
-                      name: 'Time of Day', 
+                    {
+                      name: 'Time of Day',
                       emoji: '🌙',
-                      weight: 15, 
+                      weight: 15,
                       risk: rf.timeRisk,
                       points: Math.round((1 - rf.timeRisk) * 15),
                       description: timeLabel
                     },
-                    { 
-                      name: 'Road Type', 
+                    {
+                      name: 'Road Type',
                       emoji: '🛣️',
-                      weight: 10, 
+                      weight: 10,
                       risk: rf.roadTypeRisk,
                       points: Math.round((1 - rf.roadTypeRisk) * 10),
                       description: rf.roadTypeRisk <= 0.4 ? 'Main roads/highways' : rf.roadTypeRisk <= 0.6 ? 'Residential streets' : 'Narrow lanes/alleys'
                     },
-                    { 
-                      name: 'Distance', 
+                    {
+                      name: 'Distance',
                       emoji: '📏',
-                      weight: 10, 
+                      weight: 10,
                       risk: rf.distanceRisk,
                       points: Math.round((1 - rf.distanceRisk) * 10),
                       description: rf.distanceRisk <= 0.3 ? 'Short distance (<3km)' : rf.distanceRisk <= 0.6 ? 'Moderate distance' : 'Long distance (>6km)'
                     },
-                    { 
-                      name: 'Duration', 
+                    {
+                      name: 'Duration',
                       emoji: '⏱️',
-                      weight: 10, 
+                      weight: 10,
                       risk: rf.durationRisk,
                       points: Math.round((1 - rf.durationRisk) * 10),
                       description: rf.durationRisk <= 0.3 ? 'Quick trip (<10min)' : rf.durationRisk <= 0.6 ? 'Moderate duration' : 'Long duration (>20min)'
                     },
-                    { 
-                      name: 'Weather', 
+                    {
+                      name: 'Weather',
                       emoji: '🌦️',
-                      weight: 10, 
+                      weight: 10,
                       risk: rf.weatherRisk,
                       points: Math.round((1 - rf.weatherRisk) * 10),
                       description: rf.weatherRisk <= 0.3 ? 'Clear weather' : rf.weatherRisk <= 0.6 ? 'Cloudy/light rain' : 'Poor visibility'
                     },
-                    { 
-                      name: 'Route Complexity', 
+                    {
+                      name: 'Route Complexity',
                       emoji: '🔄',
-                      weight: 5, 
+                      weight: 5,
                       risk: rf.turnRisk,
                       points: Math.round((1 - rf.turnRisk) * 5),
                       description: rf.turnRisk <= 0.3 ? 'Straightforward route' : rf.turnRisk <= 0.6 ? 'Some turns' : 'Complex route'
@@ -1300,13 +1382,13 @@ export default function SafeRoute() {
                         <AlertCircle className="w-4 h-4 text-muted-foreground" />
                         Factor-by-Factor Breakdown
                       </h4>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {factors.map((factor) => {
                           const percentage = (factor.points / factor.weight) * 100;
                           const colorClass = percentage >= 70 ? 'text-green-400' : percentage >= 40 ? 'text-yellow-400' : 'text-red-400';
                           const bgColorClass = percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500';
-                          
+
                           return (
                             <div key={factor.name} className="bg-secondary/50 rounded-lg p-3">
                               <div className="flex justify-between items-center mb-2">
@@ -1320,15 +1402,15 @@ export default function SafeRoute() {
                                   <span className="text-xs text-muted-foreground ml-1">pts</span>
                                 </div>
                               </div>
-                              
+
                               {/* Progress bar */}
                               <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
-                                <div 
+                                <div
                                   className={`h-2.5 rounded-full ${bgColorClass} transition-all`}
                                   style={{ width: `${percentage}%` }}
                                 />
                               </div>
-                              
+
                               {/* Description and weight info */}
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-muted-foreground">
@@ -1377,7 +1459,7 @@ export default function SafeRoute() {
                     </ul>
                   </div>
                 )}
-                
+
                 {/* Recommendations */}
                 {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
                   <div className="space-y-2 pt-4 border-t border-border">
@@ -1418,7 +1500,7 @@ export default function SafeRoute() {
                   </span>
                 )}
               </h3>
-              
+
               {/* Relative Score Legend */}
               <div className="flex flex-wrap items-center gap-3 text-xs xl:text-sm">
                 <span className="text-muted-foreground font-medium">Relative Score:</span>
@@ -1436,26 +1518,25 @@ export default function SafeRoute() {
                 </div>
               </div>
             </div>
-            
+
             {/* Relative Scoring Notice */}
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
               <div className="text-xs xl:text-sm text-blue-300">
-                <span className="font-semibold">Relative Safety Scoring:</span> Scores are calculated by comparing routes against each other. 
+                <span className="font-semibold">Relative Safety Scoring:</span> Scores are calculated by comparing routes against each other.
                 The safest route among alternatives gets the highest score. This is <span className="font-semibold">NOT</span> an absolute safety rating of the road.
               </div>
             </div>
           </div>
-          
-          <div className={`grid grid-cols-1 gap-4 xl:gap-6 ${
-            routes.length === 1 ? 'xl:grid-cols-1 max-w-md mx-auto' : 
-            routes.length === 2 ? 'xl:grid-cols-2 max-w-2xl mx-auto' : 
-            'xl:grid-cols-3'
-          }`}>
+
+          <div className={`grid grid-cols-1 gap-4 xl:gap-6 ${routes.length === 1 ? 'xl:grid-cols-1 max-w-md mx-auto' :
+            routes.length === 2 ? 'xl:grid-cols-2 max-w-2xl mx-auto' :
+              'xl:grid-cols-3'
+            }`}>
             {routes.map((route) => {
               const analysis = safetyAnalyses.get(route.id);
               const score = analysis?.safetyScore || route.safetyScore;
-              
+
               // Get safety category based on score
               // Get safety category based on relative score ranges
               const getSafetyCategory = (s: number) => {
@@ -1464,13 +1545,12 @@ export default function SafeRoute() {
                 return { label: 'Least Safe', color: 'bg-orange-500/20 text-orange-400 border-orange-500/50' };
               };
               const safetyCategory = getSafetyCategory(score);
-              
+
               return (
-                <Card 
+                <Card
                   key={route.id}
-                  className={`bg-card border-2 transition-all cursor-pointer hover:shadow-lg ${
-                    selectedRoute?.id === route.id ? 'border-primary' : 'border-border'
-                  }`}
+                  className={`bg-card border-2 transition-all cursor-pointer hover:shadow-lg ${selectedRoute?.id === route.id ? 'border-primary' : 'border-border'
+                    }`}
                   onClick={() => handleRouteSelect(route)}
                 >
                   <CardHeader>
@@ -1496,7 +1576,7 @@ export default function SafeRoute() {
                       <span className="font-medium">{route.duration}</span>
                     </div>
                     <div className="flex gap-2 mt-2">
-                      <Button 
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRouteSelect(route);
@@ -1550,10 +1630,10 @@ export default function SafeRoute() {
                   <li>You can submit feedback once per area every 24 hours</li>
                 </ul>
               </div>
-              
+
               {/* Action Buttons */}
               <div className="flex flex-col xl:flex-row gap-3 xl:gap-4">
-                <Button 
+                <Button
                   onClick={() => handleOpenFeedback('safe')}
                   variant="outline"
                   className="flex-1 text-sm xl:text-base border-green-500/50 hover:bg-green-500/10 hover:text-green-400"
@@ -1561,7 +1641,7 @@ export default function SafeRoute() {
                   <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
                   Mark Area Safe
                 </Button>
-                <Button 
+                <Button
                   onClick={() => handleOpenFeedback('unsafe')}
                   variant="outline"
                   className="flex-1 text-sm xl:text-base border-red-500/50 hover:bg-red-500/10 hover:text-red-400"
@@ -1596,7 +1676,7 @@ export default function SafeRoute() {
               Rate this area to help others stay safe
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             {/* Location Status - Full width loading state */}
             {isGettingLocation ? (
@@ -1635,23 +1715,22 @@ export default function SafeRoute() {
                     <MapPinned className="w-4 h-4" />
                     <span>Area Grid: {getGridId(userLocation.lat, userLocation.lng)}</span>
                   </div>
-                  
+
                   {/* Current Area Score */}
                   {currentAreaScore !== null && (
                     <div className="mt-2 flex items-center gap-2 text-sm">
                       <Shield className="w-4 h-4 text-primary" />
                       <span>Community score for this area:</span>
-                      <Badge className={`${
-                        currentAreaScore >= 70 ? 'bg-green-500/20 text-green-400' :
+                      <Badge className={`${currentAreaScore >= 70 ? 'bg-green-500/20 text-green-400' :
                         currentAreaScore >= 40 ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-red-500/20 text-red-400'
-                      }`}>
+                          'bg-red-500/20 text-red-400'
+                        }`}>
                         {currentAreaScore}/100
                       </Badge>
                     </div>
                   )}
                 </div>
-                
+
                 {/* 24-Hour Cooldown Warning */}
                 {feedbackEligibility && !feedbackEligibility.canSubmit && (
                   <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
@@ -1664,7 +1743,7 @@ export default function SafeRoute() {
                     </p>
                   </div>
                 )}
-            
+
                 {/* Rating Section - Only show if eligible */}
                 {(!feedbackEligibility || feedbackEligibility.canSubmit) && (
                   <>
@@ -1674,11 +1753,11 @@ export default function SafeRoute() {
                         <Star className="w-4 h-4 text-yellow-400" />
                         <span className="text-sm font-semibold">Rate This Area</span>
                       </div>
-                      
+
                       {/* Compulsory Ratings */}
                       <div className="space-y-3">
                         <p className="text-xs text-muted-foreground border-b border-border pb-2">Required Ratings</p>
-                        
+
                         <StarRating
                           rating={lightingRating}
                           onRatingChange={setLightingRating}
@@ -1686,7 +1765,7 @@ export default function SafeRoute() {
                           required={true}
                           size="md"
                         />
-                        
+
                         <StarRating
                           rating={crowdednessRating}
                           onRatingChange={setCrowdednessRating}
@@ -1694,7 +1773,7 @@ export default function SafeRoute() {
                           required={true}
                           size="md"
                         />
-                        
+
                         <StarRating
                           rating={roadConditionRating}
                           onRatingChange={setRoadConditionRating}
@@ -1703,11 +1782,11 @@ export default function SafeRoute() {
                           size="md"
                         />
                       </div>
-                      
+
                       {/* Optional Ratings */}
                       <div className="space-y-3 pt-2">
                         <p className="text-xs text-muted-foreground border-b border-border pb-2">Optional Ratings</p>
-                        
+
                         <StarRating
                           rating={visibilityRating}
                           onRatingChange={setVisibilityRating}
@@ -1715,7 +1794,7 @@ export default function SafeRoute() {
                           required={false}
                           size="md"
                         />
-                        
+
                         <StarRating
                           rating={publicTransportRating}
                           onRatingChange={setPublicTransportRating}
@@ -1723,7 +1802,7 @@ export default function SafeRoute() {
                           required={false}
                           size="md"
                         />
-                        
+
                         <StarRating
                           rating={emergencyAccessRating}
                           onRatingChange={setEmergencyAccessRating}
@@ -1733,7 +1812,7 @@ export default function SafeRoute() {
                         />
                       </div>
                     </div>
-                    
+
                     {/* Overall Safety Score */}
                     <div className="bg-secondary/30 rounded-lg p-4">
                       <SafetyScoreSlider
@@ -1743,7 +1822,7 @@ export default function SafeRoute() {
                         required={true}
                       />
                     </div>
-                    
+
                     {/* Experience Text (Optional) */}
                     <div className="space-y-2">
                       <Label htmlFor="experience" className="text-sm flex items-center gap-1">
@@ -1753,7 +1832,7 @@ export default function SafeRoute() {
                       <Textarea
                         id="experience"
                         placeholder={
-                          feedbackType === 'safe' 
+                          feedbackType === 'safe'
                             ? "e.g., Well-lit streets, police patrol visible, busy area..."
                             : "e.g., Poor lighting, isolated area, suspicious activity..."
                         }
@@ -1767,20 +1846,19 @@ export default function SafeRoute() {
                     </div>
                   </>
                 )}
-            
+
                 {/* Recent Reports in this Area */}
                 {areaReports.length > 0 && (
                   <div className="space-y-2">
                     <Label className="text-sm">Recent reports in this area:</Label>
                     <div className="max-h-32 overflow-y-auto space-y-2">
                       {areaReports.slice(0, 3).map((report, index) => (
-                        <div 
-                          key={report.id || index} 
-                          className={`text-xs p-2 rounded ${
-                            report.isSafe 
-                              ? 'bg-green-500/10 border border-green-500/30' 
-                              : 'bg-red-500/10 border border-red-500/30'
-                          }`}
+                        <div
+                          key={report.id || index}
+                          className={`text-xs p-2 rounded ${report.isSafe
+                            ? 'bg-green-500/10 border border-green-500/30'
+                            : 'bg-red-500/10 border border-red-500/30'
+                            }`}
                         >
                           <div className="flex items-center gap-1 mb-1">
                             {report.isSafe ? (
@@ -1808,7 +1886,7 @@ export default function SafeRoute() {
               </>
             )}
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2 border-t border-border">
             <Button
@@ -1821,13 +1899,12 @@ export default function SafeRoute() {
             <Button
               onClick={handleSubmitFeedback}
               disabled={!userLocation || isSubmittingFeedback || isGettingLocation || (feedbackEligibility !== null && !feedbackEligibility.canSubmit)}
-              className={`flex-1 ${
-                feedbackEligibility && !feedbackEligibility.canSubmit
-                  ? 'bg-gray-600 cursor-not-allowed'
-                  : feedbackType === 'safe' 
-                    ? 'bg-green-600 hover:bg-green-700' 
-                    : 'bg-red-600 hover:bg-red-700'
-              }`}
+              className={`flex-1 ${feedbackEligibility && !feedbackEligibility.canSubmit
+                ? 'bg-gray-600 cursor-not-allowed'
+                : feedbackType === 'safe'
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-red-600 hover:bg-red-700'
+                }`}
             >
               {isSubmittingFeedback ? (
                 <>
@@ -1850,8 +1927,8 @@ export default function SafeRoute() {
           <p className="text-foreground font-semibold text-sm xl:text-base">SafeRoute</p>
           <p className="text-muted-foreground text-xs xl:text-sm">Hackathon Prototype 2025</p>
           <p className="text-muted-foreground text-xs">Prototype for demonstration only</p>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="sm"
             onClick={scrollToTop}
             className="mt-4 text-xs xl:text-sm"
@@ -1903,7 +1980,7 @@ export default function SafeRoute() {
               Our Vision
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-2">
             {/* Vision Statement */}
             <div className="space-y-3">
@@ -1912,7 +1989,7 @@ export default function SafeRoute() {
                   <strong>SafeRoute</strong> is built with one mission: <span className="text-primary">to help women travel safer at night</span>.
                 </p>
               </div>
-              
+
               <div className="space-y-2 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <Shield className="w-4 h-4 text-primary mt-0.5 shrink-0" />
@@ -1931,7 +2008,7 @@ export default function SafeRoute() {
                   <span><strong className="text-foreground">Transparent</strong> — Every safety score is explained with full breakdown</span>
                 </div>
               </div>
-              
+
               <p className="text-xs text-muted-foreground italic text-center pt-2 border-t border-border">
                 "Not the fastest route. The safest one."
               </p>
@@ -1943,7 +2020,7 @@ export default function SafeRoute() {
                 <Send className="w-4 h-4 text-primary" />
                 Rate & Send Feedback
               </h4>
-              
+
               {isLoadingAppFeedback ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -1961,25 +2038,24 @@ export default function SafeRoute() {
                       You have already given your feedback. Thank you for your support!
                     </p>
                   </div>
-                  
+
                   {/* Show their rating (locked) */}
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Your Rating:</Label>
                     <div className="flex gap-1">
                       {[1, 2, 3, 4, 5].map((star) => (
-                        <Star 
+                        <Star
                           key={star}
-                          className={`w-6 h-6 ${
-                            star <= appRating 
-                              ? 'fill-yellow-400 text-yellow-400' 
-                              : 'text-gray-600'
-                          }`}
+                          className={`w-6 h-6 ${star <= appRating
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-gray-600'
+                            }`}
                         />
                       ))}
                       <span className="ml-2 text-sm text-muted-foreground">({appRating}/5)</span>
                     </div>
                   </div>
-                  
+
                   {/* Show their feedback if any */}
                   {appFeedback && (
                     <div className="space-y-1">
@@ -2003,18 +2079,17 @@ export default function SafeRoute() {
                           onClick={() => setAppRating(star)}
                           className="focus:outline-none transition-transform hover:scale-110"
                         >
-                          <Star 
-                            className={`w-7 h-7 ${
-                              star <= appRating 
-                                ? 'fill-yellow-400 text-yellow-400' 
-                                : 'text-gray-500 hover:text-yellow-400'
-                            }`}
+                          <Star
+                            className={`w-7 h-7 ${star <= appRating
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-gray-500 hover:text-yellow-400'
+                              }`}
                           />
                         </button>
                       ))}
                     </div>
                   </div>
-                  
+
                   {/* Feedback Text */}
                   <div className="space-y-2">
                     <Label htmlFor="appFeedback" className="text-xs text-muted-foreground">
@@ -2028,7 +2103,7 @@ export default function SafeRoute() {
                       className="min-h-[60px] text-sm"
                     />
                   </div>
-                  
+
                   {/* Submit Button */}
                   <Button
                     onClick={async () => {
@@ -2040,11 +2115,11 @@ export default function SafeRoute() {
                         });
                         return;
                       }
-                      
+
                       setIsSubmittingAppFeedback(true);
                       try {
                         const result = await firebaseSafetyService.submitAppFeedback(appRating, appFeedback);
-                        
+
                         if (result.success) {
                           setHasSubmittedAppFeedback(true);
                           setShowVision(false);
@@ -2101,13 +2176,12 @@ export default function SafeRoute() {
             </DialogDescription>
             <div className="flex justify-center gap-1 py-2">
               {[1, 2, 3, 4, 5].map((star) => (
-                <Star 
+                <Star
                   key={star}
-                  className={`w-6 h-6 ${
-                    star <= appRating 
-                      ? 'fill-yellow-400 text-yellow-400' 
-                      : 'text-gray-600'
-                  }`}
+                  className={`w-6 h-6 ${star <= appRating
+                    ? 'fill-yellow-400 text-yellow-400'
+                    : 'text-gray-600'
+                    }`}
                 />
               ))}
             </div>
@@ -2131,7 +2205,7 @@ export default function SafeRoute() {
               Emergency Options
             </DialogTitle>
             <DialogDescription className="text-sm xl:text-base">
-              {hasMinimumSosContacts() 
+              {hasMinimumSosContacts()
                 ? 'Choose an action to notify help.'
                 : '⚠️ Please add at least 1 Emergency WhatsApp or 1 Emergency Email in Settings before using SOS.'}
             </DialogDescription>
@@ -2156,7 +2230,33 @@ export default function SafeRoute() {
             <div className="space-y-2">
               <div className="font-medium">Emergency WhatsApp</div>
               <div className="text-sm text-muted-foreground">{whatsappCount > 0 ? `${whatsappCount} contact(s) configured` : '(not set)'}</div>
-              <Button onClick={async () => { await actionWhatsApp(); }} className="w-full" disabled={whatsappCount === 0}>Send Emergency WhatsApp</Button>
+
+              <div className="space-y-2 mt-2">
+                {getWhatsappNumbers().map((num, idx) => (
+                  <Button key={idx} variant="outline" className="w-full justify-start" onClick={() => actionWhatsApp(num)}>
+                    <Send className="w-4 h-4 mr-2 text-green-500" />
+                    Send to Contact {idx + 1} ({num})
+                  </Button>
+                ))}
+
+                {whatsappCount > 1 && (
+                  <Button onClick={() => actionWhatsApp()} className="w-full mt-2" variant="default">
+                    Send to All ({whatsappCount})
+                  </Button>
+                )}
+                {whatsappCount === 0 && (
+                  <Button disabled className="w-full">Configure in Settings</Button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">Emergency SMS</div>
+              <div className="text-sm text-muted-foreground">Send standard SMS to all emergency contacts instantly.</div>
+              <Button onClick={() => actionSMS()} className="w-full" disabled={whatsappCount === 0} variant="secondary">
+                <Send className="w-4 h-4 mr-2" />
+                Send SMS to All
+              </Button>
             </div>
 
             <div className="space-y-2">
