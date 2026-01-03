@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogOverlay } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,6 +31,35 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { NavigationDialog } from '@/components/NavigationDialog';
 import { MockMap } from '@/components/MockMap';
+
+// ============== SOS FEATURE TYPES AND CONSTANTS ==============
+type SosSettings = {
+  police: string;
+  ambulance: string;
+  whatsapp: string;
+  whatsappList: string;
+  email: string;
+  messageTemplate: string;
+  enableQuickSend: boolean;
+  holdDuration: number;
+  useNominatim: boolean;
+  nominatimEmail: string;
+};
+
+const SOS_SETTINGS_KEY = 'sos_settings';
+
+const DEFAULT_SOS_SETTINGS: SosSettings = {
+  police: '100',
+  ambulance: '102',
+  whatsapp: '',
+  whatsappList: '',
+  email: '',
+  messageTemplate: 'Emergency! I need help. My location: {maps}',
+  enableQuickSend: false,
+  holdDuration: 1500,
+  useNominatim: false,
+  nominatimEmail: ''
+};
 
 export default function SafeRoute() {
   const [selectedRoute, setSelectedRoute] = useState<RouteData | null>(null);
@@ -70,6 +99,14 @@ export default function SafeRoute() {
   const [isLoadingAppFeedback, setIsLoadingAppFeedback] = useState(false);
   const [isSubmittingAppFeedback, setIsSubmittingAppFeedback] = useState(false);
   const [showThankYou, setShowThankYou] = useState(false);
+  
+  // SOS Feature State
+  const [sosSettings, setSosSettings] = useState<SosSettings>(DEFAULT_SOS_SETTINGS);
+  const [lastCoords, setLastCoords] = useState<GeolocationCoordinates | null>(null);
+  const [lastAddress, setLastAddress] = useState<string | null>(null);
+  const [sosMenuOpen, setSosMenuOpen] = useState(false);
+  const [sosSettingsOpen, setSosSettingsOpen] = useState(false);
+  const holdTimerRef = useRef<number | null>(null);
   
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -535,6 +572,329 @@ export default function SafeRoute() {
     setOverallSafetyScore(0);
   };
 
+  // ============== SOS FEATURE HELPER FUNCTIONS ==============
+  function isMobileDevice() {
+    return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
+  function buildWhatsAppAppUrl(phone: string, text?: string) {
+    const encoded = encodeURIComponent(text || '');
+    return `whatsapp://send?phone=${phone}&text=${encoded}`;
+  }
+  
+  function buildWhatsAppWebUrl(phone: string, text?: string) {
+    const encoded = encodeURIComponent(text || '');
+    return `https://web.whatsapp.com/send?phone=${phone}&text=${encoded}`;
+  }
+  
+  function buildWhatsAppWaMeUrl(phone: string, text?: string) {
+    const encoded = encodeURIComponent(text || '');
+    return `https://wa.me/${phone}?text=${encoded}`;
+  }
+
+  function openWhatsAppAppWithFallback(phone: string | undefined, text?: string) {
+    if (!phone) {
+      window.alert('No WhatsApp phone number provided');
+      return;
+    }
+
+    const appUrl = buildWhatsAppAppUrl(phone, text);
+    const webUrl = buildWhatsAppWebUrl(phone, text);
+    const waMeUrl = buildWhatsAppWaMeUrl(phone, text);
+
+    let win: Window | null = null;
+    try {
+      win = window.open('', '_blank');
+    } catch (e) {
+      win = null;
+    }
+
+    if (!win) {
+      if (isMobileDevice()) {
+        window.location.href = waMeUrl;
+      } else {
+        window.location.href = appUrl;
+        setTimeout(() => {
+          window.location.href = webUrl;
+        }, 900);
+      }
+      return;
+    }
+
+    try {
+      win.location.href = appUrl;
+    } catch (e) {
+      try {
+        win.location.href = webUrl;
+      } catch (_err) {
+        // ignore
+      }
+      return;
+    }
+
+    const fallbackTimeout = 2000;
+    setTimeout(() => {
+      try {
+        win!.location.href = webUrl;
+      } catch (e) {
+        // ignore
+      }
+    }, fallbackTimeout);
+  }
+
+  function openDial(phone?: string) {
+    if (!phone) {
+      alert('Phone number not set in Settings');
+      return;
+    }
+    window.location.href = `tel:${phone}`;
+  }
+
+  async function copyToClipboard(text: string) {
+    return navigator.clipboard?.writeText(text);
+  }
+
+  function parseWhatsappList(listStr?: string) {
+    if (!listStr) return [];
+    return listStr
+      .split(',')
+      .map((s) => s.trim())
+      .map((s) => s.replace(/\D/g, ''))
+      .filter(Boolean);
+  }
+
+  function getSosLocation(): Promise<GeolocationCoordinates | null> {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve(pos.coords),
+        () => resolve(null),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    });
+  }
+
+  async function tryReverseGeocode(lat: number, lon: number) {
+    if (!sosSettings.useNominatim) return null;
+    try {
+      const emailParam = sosSettings.nominatimEmail ? `&email=${encodeURIComponent(sosSettings.nominatimEmail)}` : '';
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}${emailParam}`;
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) return null;
+      const j = await res.json();
+      return j.display_name || null;
+    } catch (e) {
+      console.warn('Reverse geocode failed', e);
+      return null;
+    }
+  }
+
+  function mapsLink(lat: number, lon: number) {
+    return `https://maps.google.com/?q=${lat},${lon}`;
+  }
+
+  function buildMessageFrom(coords: GeolocationCoordinates | null, addressOrNull?: string | null) {
+    const maps = coords ? mapsLink(coords.latitude, coords.longitude) : '';
+    const address = addressOrNull || null;
+    let msg = sosSettings.messageTemplate || DEFAULT_SOS_SETTINGS.messageTemplate;
+    msg = msg.replace('{maps}', maps);
+    msg = msg.replace('{address}', address || (lastAddress || ''));
+    return msg;
+  }
+
+  function buildSosMessage(addressOrNull?: string | null) {
+    return buildMessageFrom(lastCoords, addressOrNull);
+  }
+
+  async function handleSosClick() {
+    const coords = await getSosLocation();
+    setLastCoords(coords);
+    if (coords && sosSettings.useNominatim) {
+      const addr = await tryReverseGeocode(coords.latitude, coords.longitude);
+      setLastAddress(addr);
+    } else {
+      setLastAddress(null);
+    }
+    setSosMenuOpen(true);
+  }
+
+  async function handleQuickSend() {
+    const needsLocation = !lastCoords && navigator.geolocation;
+    let tempWin: Window | null = null;
+
+    if (needsLocation) {
+      try {
+        tempWin = window.open('', '_blank');
+      } catch (e) {
+        tempWin = null;
+      }
+      if (!tempWin) {
+        alert('Please allow popups or use the normal flow (open menu and tap WhatsApp).');
+        return;
+      }
+    }
+
+    let coords = lastCoords;
+    let addr = lastAddress;
+    if (!coords) {
+      coords = await getSosLocation();
+      setLastCoords(coords);
+      if (coords && sosSettings.useNominatim) {
+        addr = await tryReverseGeocode(coords.latitude, coords.longitude);
+        setLastAddress(addr);
+      }
+    }
+
+    const text = buildMessageFrom(coords, addr);
+
+    if (navigator.share && isMobileDevice()) {
+      try {
+        await navigator.share({ text });
+        if (tempWin) tempWin.close();
+        return;
+      } catch (e) {
+        // fall back to app
+      }
+    }
+
+    const numbers = parseWhatsappList(sosSettings.whatsappList);
+    const phone = numbers.length ? numbers[0] : sosSettings.whatsapp;
+
+    if (phone) {
+      if (tempWin) {
+        try {
+          tempWin.location.href = buildWhatsAppAppUrl(phone, text);
+        } catch (e) {
+          try { tempWin.location.href = buildWhatsAppWebUrl(phone, text); } catch {}
+        }
+        setTimeout(() => {
+          try { tempWin!.location.href = buildWhatsAppWebUrl(phone, text); } catch {}
+        }, 900);
+        return;
+      }
+      openWhatsAppAppWithFallback(phone, text);
+      return;
+    }
+
+    if (tempWin) tempWin.close();
+    if (sosSettings.police) {
+      openDial(sosSettings.police);
+      return;
+    }
+    alert('No quick action configured (set WhatsApp or Police number in Settings).');
+  }
+
+  function actionCallPolice() {
+    openDial(sosSettings.police);
+  }
+  
+  function actionCallAmbulance() {
+    openDial(sosSettings.ambulance);
+  }
+
+  async function actionWhatsApp() {
+    const text = buildSosMessage(lastAddress);
+
+    if (navigator.share && isMobileDevice()) {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (e) {
+        // fallback
+      }
+    }
+
+    const numbers = parseWhatsappList(sosSettings.whatsappList);
+    if (numbers.length === 0) {
+      if (sosSettings.whatsapp) {
+        openWhatsAppAppWithFallback(sosSettings.whatsapp, text);
+      } else {
+        alert('No WhatsApp contact configured. Add contact in Settings.');
+      }
+      return;
+    }
+    if (numbers.length === 1) {
+      openWhatsAppAppWithFallback(numbers[0], text);
+      return;
+    }
+
+    if (!window.confirm(`Open WhatsApp chats for ${numbers.length} contacts in new tabs/windows? Your browser may block popups.`)) return;
+    for (let i = 0; i < numbers.length; i++) {
+      openWhatsAppAppWithFallback(numbers[i], text);
+      await new Promise((res) => setTimeout(res, 600));
+    }
+  }
+
+  function actionEmail() {
+    const subject = 'Emergency Help Needed';
+    const body = buildSosMessage(lastAddress);
+    const to = sosSettings.email || '';
+    if (to === '') {
+      alert('Email not configured. Add in Settings');
+      return;
+    }
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    const win = window.open(gmailUrl, '_blank');
+    if (!win) {
+      const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailto;
+    }
+  }
+
+  async function actionCopyLocation() {
+    if (!lastCoords) {
+      alert('No location available');
+      return;
+    }
+    const text = `${buildSosMessage(lastAddress)}\nCoordinates: ${lastCoords.latitude},${lastCoords.longitude}\n${mapsLink(lastCoords.latitude, lastCoords.longitude)}`;
+    try {
+      await copyToClipboard(text);
+      alert('Location copied to clipboard');
+    } catch (e) {
+      alert('Copy failed; try manually: ' + text);
+    }
+  }
+
+  function actionOpenMaps() {
+    if (!lastCoords) {
+      alert('No location available');
+      return;
+    }
+    window.open(mapsLink(lastCoords.latitude, lastCoords.longitude), '_blank');
+  }
+
+  // hold-to-quick-send helpers
+  const startHold = () => {
+    if (!sosSettings.enableQuickSend) return;
+    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = window.setTimeout(() => {
+      handleQuickSend();
+    }, sosSettings.holdDuration || DEFAULT_SOS_SETTINGS.holdDuration);
+  };
+
+  const cancelHold = () => {
+    if (holdTimerRef.current) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
+
+  function handleSosSettingsChange<K extends keyof SosSettings>(key: K, value: SosSettings[K]) {
+    setSosSettings((s) => ({ ...s, [key]: value }));
+  }
+  
+  function resetSosSettings() {
+    if (!window.confirm('Reset settings to defaults?')) return;
+    setSosSettings(DEFAULT_SOS_SETTINGS);
+  }
+
+  const whatsappCount = parseWhatsappList(sosSettings.whatsappList).length;
+  // ============== END SOS FEATURE HELPER FUNCTIONS ==============
+
   const scrollToMap = () => {
     mapSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -564,16 +924,18 @@ export default function SafeRoute() {
               <Eye className="w-4 h-4" />
               <span className="hidden sm:inline">Our Vision</span>
             </Button>
-            {selectedRoute && (
-              <Button 
-                variant="destructive" 
-                size="sm"
-                onClick={() => setShowSOS(true)}
-                className="text-xs xl:text-sm"
-              >
-                SOS
-              </Button>
-            )}
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => { handleSosClick(); }}
+              onPointerDown={startHold}
+              onPointerUp={cancelHold}
+              onPointerLeave={cancelHold}
+              title="SOS - Hold for quick send"
+              className="text-xs xl:text-sm"
+            >
+              SOS
+            </Button>
           </div>
         </div>
       </header>
@@ -1724,6 +2086,101 @@ export default function SafeRoute() {
             <Button onClick={() => setShowThankYou(false)} className="w-full mt-4">
               Continue
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* SOS Emergency Menu Dialog */}
+      <Dialog open={sosMenuOpen} onOpenChange={setSosMenuOpen}>
+        <DialogOverlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40" />
+        <DialogContent className="bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg xl:text-xl">
+              <AlertCircle className="w-6 h-6 text-destructive" />
+              Emergency Options
+            </DialogTitle>
+            <DialogDescription className="text-sm xl:text-base">
+              Choose an action to notify help. Update the settings before using the SOS
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-muted p-4 rounded-lg space-y-2">
+              <div className="font-medium text-sm xl:text-base">Call for emergency help</div>
+              <div className="flex gap-2 mt-2">
+                <Button onClick={actionCallPolice} className="flex-1">Call Police</Button>
+                <Button onClick={actionCallAmbulance} className="flex-1">Call Ambulance</Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">WhatsApp</div>
+              <div className="text-sm text-muted-foreground">{whatsappCount > 0 ? `${whatsappCount} contact(s)` : sosSettings.whatsapp || '(not set)'}</div>
+              <Button onClick={async () => { await actionWhatsApp(); }} className="w-full">Send WhatsApp</Button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">Email</div>
+              <div className="text-sm text-muted-foreground">{sosSettings.email || '(not set)'}</div>
+              <Button onClick={() => { actionEmail(); }} className="w-full">Send Email</Button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-medium">Copy Location</div>
+              <div className="text-sm text-muted-foreground">Copy coordinates / link to clipboard</div>
+              <Button onClick={() => { actionCopyLocation(); }} className="w-full">Copy</Button>
+            </div>
+
+            <div className="flex gap-3 mt-4">
+              <Button variant="outline" onClick={() => setSosMenuOpen(false)} className="flex-1">Close</Button>
+              <Button onClick={() => actionOpenMaps()} className="flex-1">Open in Maps</Button>
+              <Button variant="ghost" onClick={() => setSosSettingsOpen(true)} className="flex-1">Settings</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* SOS Settings Dialog */}
+      <Dialog open={sosSettingsOpen} onOpenChange={setSosSettingsOpen}>
+        <DialogContent className="bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-lg xl:text-xl">Emergency Settings</DialogTitle>
+            <DialogDescription className="text-sm xl:text-base">
+              Configure phone numbers and quick-send preferences.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Police phone number (international format, no +)</Label>
+              <Input value={sosSettings.police} onChange={(e) => handleSosSettingsChange('police', e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Ambulance phone number (international format, no +)</Label>
+              <Input value={sosSettings.ambulance} onChange={(e) => handleSosSettingsChange('ambulance', e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>WhatsApp single-number (international format, no +)</Label>
+              <Input value={sosSettings.whatsapp} onChange={(e) => handleSosSettingsChange('whatsapp', e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={sosSettings.email} onChange={(e) => handleSosSettingsChange('email', e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default message template. For providing location use {'{maps}'}</Label>
+              <Textarea rows={3} value={sosSettings.messageTemplate} onChange={(e) => handleSosSettingsChange('messageTemplate', e.target.value)} />
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => { setSosSettingsOpen(false); toast({ title: 'Settings saved', description: 'Saved locally in your browser.' }); }} className="flex-1">Save</Button>
+              <Button onClick={() => setSosSettingsOpen(false)} className="flex-1">Close</Button>
+              <Button variant="outline" onClick={() => { resetSosSettings(); toast({ title: 'Settings reset', description: 'Reset to defaults.' }); }} className="flex-1">Reset</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
