@@ -2119,9 +2119,9 @@ export default function SafeRoute() {
             </div>
 
             <div className="space-y-2">
-              <div className="font-medium">WhatsApp</div>
+              <div className="font-medium">Emergency WhatsApp</div>
               <div className="text-sm text-muted-foreground">{whatsappCount > 0 ? `${whatsappCount} contact(s)` : sosSettings.whatsapp || '(not set)'}</div>
-              <Button onClick={async () => { await actionWhatsApp(); }} className="w-full">Send WhatsApp</Button>
+              <Button onClick={async () => { await actionWhatsApp(); }} className="w-full">Send Emergency WhatsApp</Button>
             </div>
 
             <div className="space-y-2">
@@ -2167,7 +2167,7 @@ export default function SafeRoute() {
             </div>
 
             <div className="space-y-2">
-              <Label>WhatsApp single-number (international format, no +)</Label>
+              <Label>Emergency WhatsApp number (international format, no +)</Label>
               <Input value={sosSettings.whatsapp} onChange={(e) => handleSosSettingsChange('whatsapp', e.target.value)} />
             </div>
 
