@@ -628,7 +628,8 @@ export default function SafeRoute() {
       if (isAndroid) {
         // Intent scheme for Android - tries to open WhatsApp or Business
         // S.browser_fallback_url param prevents it from going to random places if app missing
-        const intentUrl = `intent://send?phone=${phone}&text=${encodeURIComponent(text || '')}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=https://www.whatsapp.com/download;end`;
+        // Removed 'package=com.whatsapp' to allow WhatsApp Business (com.whatsapp.w4b) to handle it too
+        const intentUrl = `intent://send?phone=${phone}&text=${encodeURIComponent(text || '')}#Intent;scheme=whatsapp;S.browser_fallback_url=https://www.whatsapp.com/download;end`;
 
         if (win) {
           win.location.href = intentUrl;
