@@ -583,7 +583,8 @@ export default function SafeRoute() {
 
   // ============== SOS FEATURE HELPER FUNCTIONS ==============
   function isMobileDevice() {
-    return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   }
 
   function buildWhatsAppAppUrl(phone: string, text?: string) {
@@ -618,38 +619,52 @@ export default function SafeRoute() {
       win = null;
     }
 
-    if (!win) {
-      if (isMobileDevice()) {
-        // Force native intent - this will open WhatsApp or WhatsApp Business if installed
-        window.location.href = appUrl;
+    // Mobile Logic: Force Native App
+    if (isMobileDevice()) {
+      const isAndroid = /Android/i.test(navigator.userAgent);
+
+      // Android: Use Intent Scheme which is more robust
+      // This tries WhatsApp first, then Business, then falls back to browser ONLY if both missing (but user said force app)
+      if (isAndroid) {
+        // Intent scheme for Android - tries to open WhatsApp or Business
+        // S.browser_fallback_url param prevents it from going to random places if app missing
+        const intentUrl = `intent://send?phone=${phone}&text=${encodeURIComponent(text || '')}#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=https://www.whatsapp.com/download;end`;
+
+        if (win) {
+          win.location.href = intentUrl;
+        } else {
+          window.location.href = intentUrl;
+        }
+        return;
+      }
+
+      // iOS / Other Mobile: Use Custom Scheme
+      if (win) {
+        win.location.href = appUrl;
       } else {
         window.location.href = appUrl;
-        setTimeout(() => {
-          window.location.href = webUrl;
-        }, 900);
       }
+      return;
+    }
+
+    // Desktop Logic
+    if (!win) {
+      window.location.href = appUrl;
+      setTimeout(() => {
+        window.location.href = webUrl;
+      }, 1000);
       return;
     }
 
     try {
       win.location.href = appUrl;
     } catch (e) {
-      try {
-        win.location.href = webUrl;
-      } catch (_err) {
-        // ignore
-      }
-      return;
+      win.location.href = webUrl;
     }
 
-    const fallbackTimeout = 2000;
     setTimeout(() => {
-      try {
-        win!.location.href = webUrl;
-      } catch (e) {
-        // ignore
-      }
-    }, fallbackTimeout);
+      try { win!.location.href = webUrl; } catch { }
+    }, 2000);
   }
 
   function openDial(phone?: string) {
