@@ -710,15 +710,20 @@ export default function SafeRoute() {
   }
 
   async function handleSosClick() {
-    const coords = await getSosLocation();
-    setLastCoords(coords);
-    if (coords && sosSettings.useNominatim) {
-      const addr = await tryReverseGeocode(coords.latitude, coords.longitude);
-      setLastAddress(addr);
-    } else {
-      setLastAddress(null);
-    }
+    // Open the SOS menu IMMEDIATELY - don't wait for location
     setSosMenuOpen(true);
+    
+    // Fetch location in the background
+    getSosLocation().then((coords) => {
+      setLastCoords(coords);
+      if (coords && sosSettings.useNominatim) {
+        tryReverseGeocode(coords.latitude, coords.longitude).then((addr) => {
+          setLastAddress(addr);
+        });
+      } else {
+        setLastAddress(null);
+      }
+    });
   }
 
   async function handleQuickSend() {
