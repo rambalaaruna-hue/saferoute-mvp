@@ -33,3 +33,4 @@ history/*.json
 firebase-debug.log
 node_modules
 node_modules
+.vercel
