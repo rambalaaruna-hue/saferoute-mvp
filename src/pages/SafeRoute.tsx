@@ -610,7 +610,15 @@ export default function SafeRoute() {
 
     const appUrl = buildWhatsAppAppUrl(phone, text);
     const webUrl = buildWhatsAppWebUrl(phone, text);
-    const waMeUrl = buildWhatsAppWaMeUrl(phone, text);
+
+    // Mobile Logic: Force Native App immediately
+    // Do NOT open a new window/tab for mobile, as it breaks custom scheme opening
+    if (isMobileDevice()) {
+      // "whatsapp://" scheme works for both Standard and Business apps on Android/iOS
+      // The OS will prompt the user or open their default choice
+      window.location.href = appUrl;
+      return;
+    }
 
     let win: Window | null = null;
     try {
