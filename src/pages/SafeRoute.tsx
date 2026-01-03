@@ -2236,7 +2236,7 @@ export default function SafeRoute() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
             {!hasMinimumSosContacts() && (
               <div className="bg-destructive/10 border border-destructive/30 p-4 rounded-lg">
                 <div className="text-sm text-destructive font-medium">Setup Required</div>
@@ -2316,25 +2316,70 @@ export default function SafeRoute() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Police phone number (international format, no +)</Label>
-              <Input value={sosSettings.police} onChange={(e) => handleSosSettingsChange('police', e.target.value)} />
-            </div>
+            {/* Helper for rendering phone inputs with country code */}
+            {(() => {
+              const renderPhoneInput = (label: string, field: keyof SosSettings, placeholder: string) => {
+                const fullValue = sosSettings[field] as string || '';
+                let code = '91';
+                let number = fullValue;
 
-            <div className="space-y-2">
-              <Label>Ambulance phone number (international format, no +)</Label>
-              <Input value={sosSettings.ambulance} onChange={(e) => handleSosSettingsChange('ambulance', e.target.value)} />
-            </div>
+                // Simple heuristic to split existing numbers
+                if (fullValue.startsWith('91') && fullValue.length > 5) {
+                  code = '91';
+                  number = fullValue.slice(2);
+                } else if (fullValue.length > 0 && !fullValue.startsWith('91')) {
+                  // If it doesn't start with 91, keep it all in number for safety, defaulting code to 91
+                  number = fullValue;
+                }
 
-            <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
-              <div className="font-medium text-sm">Emergency WhatsApp Numbers (international format, no +)</div>
-              <div className="text-xs text-muted-foreground">At least 1 required. Add up to 3 for added safety.</div>
-              <div className="space-y-2">
-                <Input placeholder="WhatsApp 1 (required)" value={sosSettings.whatsapp1} onChange={(e) => handleSosSettingsChange('whatsapp1', e.target.value)} />
-                <Input placeholder="WhatsApp 2 (optional)" value={sosSettings.whatsapp2} onChange={(e) => handleSosSettingsChange('whatsapp2', e.target.value)} />
-                <Input placeholder="WhatsApp 3 (optional)" value={sosSettings.whatsapp3} onChange={(e) => handleSosSettingsChange('whatsapp3', e.target.value)} />
-              </div>
-            </div>
+                return (
+                  <div className="space-y-1">
+                    {label && <Label>{label}</Label>}
+                    <div className="flex gap-2">
+                      {/* Country Code */}
+                      <div className="w-20 flex-shrink-0">
+                        <Input
+                          value={code}
+                          onChange={(e) => {
+                            const newCode = e.target.value.replace(/\D/g, '');
+                            handleSosSettingsChange(field, newCode + number);
+                          }}
+                          placeholder="Code"
+                          className="text-center"
+                        />
+                      </div>
+                      {/* Phone Number */}
+                      <div className="flex-1">
+                        <Input
+                          value={number}
+                          onChange={(e) => {
+                            const newNumber = e.target.value.replace(/\D/g, '');
+                            handleSosSettingsChange(field, code + newNumber); // Always unite with current/default code
+                          }}
+                          placeholder={placeholder}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  {renderPhoneInput('Police phone number', 'police', 'e.g. 100')}
+                  {renderPhoneInput('Ambulance phone number', 'ambulance', 'e.g. 102')}
+
+                  <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                    <div className="font-medium text-sm">Emergency WhatsApp Numbers</div>
+                    <div className="text-xs text-muted-foreground">Country code + Number required. We auto-add the code for you.</div>
+
+                    {renderPhoneInput('', 'whatsapp1', 'WhatsApp 1 (required)')}
+                    {renderPhoneInput('', 'whatsapp2', 'WhatsApp 2 (optional)')}
+                    {renderPhoneInput('', 'whatsapp3', 'WhatsApp 3 (optional)')}
+                  </div>
+                </>
+              );
+            })()}
 
             <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
               <div className="font-medium text-sm">Emergency Email Addresses</div>
