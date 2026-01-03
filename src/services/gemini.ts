@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { RouteData } from './googleMaps';
+import type { RiskFactors } from './safetyScorer';
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -8,6 +9,9 @@ export interface SafetyAnalysis {
   highlights: string[];
   safetyScore: number;
   recommendations: string[];
+  riskFactors?: RiskFactors;  // Detailed risk breakdown
+  rank?: number;              // Route rank (1 = safest)
+  rawRiskScore?: number;      // Raw risk score (0-100)
 }
 
 class GeminiService {
@@ -28,13 +32,11 @@ class GeminiService {
       } else {
         console.warn('⚠️ Gemini API not configured - using fallback analysis');
         console.warn('Set VITE_GEMINI_API_KEY in .env for AI-powered safety analysis');
-        this.isInitialized = false;
       }
     } catch (error) {
       console.error('❌ Error initializing Gemini API:', error);
       this.genAI = null;
       this.model = null;
-
     }
   }
 
@@ -85,6 +87,8 @@ class GeminiService {
 
   private buildSafetyPrompt(route: RouteData, travelTime: string, routeIndex: number): string {
     const routeType = routeIndex === 0 ? 'safest' : routeIndex === 1 ? 'balanced' : 'fastest';
+    const warnings = route.warnings || [];
+    const steps = route.steps || [];
     
     return `You are a safety analyst for SafeRoute, an AI-powered navigation app helping women choose safer routes at night.
 
@@ -94,9 +98,9 @@ Route Details:
 - Route Type: ${routeType.toUpperCase()}
 - Distance: ${route.distance}
 - Duration: ${route.duration}
-- Summary: ${route.summary}
-- Warnings: ${route.warnings.length > 0 ? route.warnings.join(', ') : 'None'}
-- Number of turns: ${route.steps.length}
+- Summary: ${route.summary || route.name || 'Route'}
+- Warnings: ${warnings.length > 0 ? warnings.join(', ') : 'None'}
+- Number of turns: ${steps.length}
 
 IMPORTANT: Provide a safety score that reflects the route type:
 - SAFEST route: 85-95 (prioritizes well-lit streets, high foot traffic, commercial areas)

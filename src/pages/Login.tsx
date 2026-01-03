@@ -1,6 +1,9 @@
 import { useState } from "react";
+// @ts-ignore - JSX component
 import LoginForm from "../components/LoginForm";
+// @ts-ignore - JSX component
 import RegisterForm from "../components/RegisterForm";
+// @ts-ignore - JSX component
 import ResetPassword from "../components/ResetPassword";
 import bgImage from "../img.jpg";
 

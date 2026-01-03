@@ -2,6 +2,9 @@
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+// Travel mode type - includes our custom TWO_WHEELER
+export type TravelMode = 'WALKING' | 'DRIVING' | 'TRANSIT' | 'TWO_WHEELER';
+
 export interface RouteData {
   id: string;
   name: string;
@@ -256,9 +259,10 @@ class GoogleMapsService {
   async getRoutes(
     origin: string,
     destination: string,
-    travelTime?: string
+    travelTime?: string,
+    travelMode: TravelMode = 'WALKING'
   ): Promise<RouteData[]> {
-    console.log('🛣️ Getting routes from:', origin, 'to:', destination);
+    console.log('🛣️ Getting routes from:', origin, 'to:', destination, 'via:', travelMode);
     
     await this.ensureLoaded();
     
@@ -276,11 +280,15 @@ class GoogleMapsService {
 
     const routes: RouteData[] = [];
 
+    // Convert our travel mode to Google Maps travel mode
+    // Note: TWO_WHEELER uses DRIVING mode but we'll adjust the duration estimate
+    const googleTravelMode = this.getGoogleTravelMode(travelMode);
+
     // Request routes with alternatives
     const request: google.maps.DirectionsRequest = {
       origin,
       destination,
-      travelMode: google.maps.TravelMode.WALKING,
+      travelMode: googleTravelMode,
       provideRouteAlternatives: true,
       unitSystem: google.maps.UnitSystem.METRIC
     };
@@ -387,6 +395,24 @@ class GoogleMapsService {
     });
   }
 
+  // Convert our travel mode to Google Maps travel mode
+  private getGoogleTravelMode(travelMode: TravelMode): google.maps.TravelMode {
+    switch (travelMode) {
+      case 'WALKING':
+        return google.maps.TravelMode.WALKING;
+      case 'DRIVING':
+        return google.maps.TravelMode.DRIVING;
+      case 'TWO_WHEELER':
+        // Google Maps doesn't have a specific two-wheeler mode
+        // We use DRIVING and adjust speed estimates
+        return google.maps.TravelMode.DRIVING;
+      case 'TRANSIT':
+        return google.maps.TravelMode.TRANSIT;
+      default:
+        return google.maps.TravelMode.WALKING;
+    }
+  }
+
   private calculateBaseSafetyScore(route: google.maps.DirectionsRoute, index: number): number {
     // Base score calculation (simplified)
     // In a real app, this would consider:
@@ -421,15 +447,23 @@ class GoogleMapsService {
   }
 
   highlightRoute(routeIndex: number) {
+    if (!this.directionsRenderers || this.directionsRenderers.length === 0) {
+      return; // No renderers to highlight (e.g., in demo mode)
+    }
+    
     this.directionsRenderers.forEach((renderer, index) => {
-      const polylineOptions = renderer.getDirections()?.routes[index] ? {
-        strokeColor: this.getRouteColor(index),
-        strokeWeight: index === routeIndex ? 6 : 3,
-        strokeOpacity: index === routeIndex ? 0.9 : 0.4
-      } : undefined;
+      try {
+        const polylineOptions = renderer.getDirections()?.routes[index] ? {
+          strokeColor: this.getRouteColor(index),
+          strokeWeight: index === routeIndex ? 6 : 3,
+          strokeOpacity: index === routeIndex ? 0.9 : 0.4
+        } : undefined;
 
-      if (polylineOptions) {
-        renderer.setOptions({ polylineOptions });
+        if (polylineOptions) {
+          renderer.setOptions({ polylineOptions });
+        }
+      } catch (error) {
+        console.warn('Failed to highlight route:', error);
       }
     });
   }
@@ -486,18 +520,55 @@ class GoogleMapsService {
   getNavigationSteps(route: RouteData): NavigationStep[] {
     const steps: NavigationStep[] = [];
     
-    route.steps.forEach((step) => {
-      steps.push({
-        instruction: step.instructions.replace(/<[^>]*>/g, ''), // Remove HTML tags
-        distance: step.distance?.text || '',
-        duration: step.duration?.text || '',
-        maneuver: step.maneuver,
-        location: {
-          lat: step.start_location.lat(),
-          lng: step.start_location.lng()
+    // Check if route has steps
+    if (!route || !route.steps || !Array.isArray(route.steps)) {
+      console.warn('Route has no steps or steps is not an array');
+      return steps;
+    }
+    
+    try {
+      route.steps.forEach((step: any) => {
+        // Handle both Google Maps DirectionsStep and mock step formats
+        const instruction = step.instructions 
+          ? step.instructions.replace(/<[^>]*>/g, '') // Remove HTML tags from Google Maps
+          : step.instruction || 'Continue';
+        
+        const distance = step.distance?.text || step.distance || '';
+        const duration = step.duration?.text || step.duration || '';
+        
+        // Handle location - Google Maps uses methods, mock uses plain objects
+        let lat: number;
+        let lng: number;
+        
+        if (step.start_location) {
+          // Google Maps format - start_location has lat() and lng() methods
+          lat = typeof step.start_location.lat === 'function' 
+            ? step.start_location.lat() 
+            : step.start_location.lat;
+          lng = typeof step.start_location.lng === 'function' 
+            ? step.start_location.lng() 
+            : step.start_location.lng;
+        } else if (step.location) {
+          // Mock format - location is a plain object
+          lat = step.location.lat;
+          lng = step.location.lng;
+        } else {
+          // Fallback
+          lat = 0;
+          lng = 0;
         }
+        
+        steps.push({
+          instruction,
+          distance,
+          duration,
+          maneuver: step.maneuver,
+          location: { lat, lng }
+        });
       });
-    });
+    } catch (error) {
+      console.error('Error processing navigation steps:', error);
+    }
 
     return steps;
   }

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation } from 'lucide-react';
+import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart } from 'lucide-react';
+import { StarRating, SafetyScoreSlider } from '@/components/StarRating';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +8,26 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { googleMapsService, type RouteData } from '@/services/googleMaps';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { googleMapsService, type RouteData, type TravelMode } from '@/services/googleMaps';
 import { mockGoogleMapsService, type MockRouteData } from '@/services/mockGoogleMaps';
 import { geminiService, type SafetyAnalysis } from '@/services/gemini';
+import { 
+  safetyScorer, 
+  parseDistanceToKm, 
+  parseDurationToMin, 
+  detectRoadType,
+  estimateLightingLevel,
+  getCrimeLevelForLocation,
+  type RouteInputData,
+  type EnvironmentData
+} from '@/services/safetyScorer';
+import { 
+  firebaseSafetyService,
+  getGridId,
+  type AreaReport,
+  type SafetyRatings 
+} from '@/services/firebaseSafety';
 import { useToast } from '@/hooks/use-toast';
 import { NavigationDialog } from '@/components/NavigationDialog';
 import { MockMap } from '@/components/MockMap';
@@ -23,16 +41,60 @@ export default function SafeRoute() {
   const [destination, setDestination] = useState('');
   const [travelTime, setTravelTime] = useState('21:00');
   const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<'safe' | 'unsafe' | null>(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  
+  // Safety ratings state
+  const [lightingRating, setLightingRating] = useState(0);
+  const [crowdednessRating, setCrowdednessRating] = useState(0);
+  const [roadConditionRating, setRoadConditionRating] = useState(0);
+  const [visibilityRating, setVisibilityRating] = useState(0);
+  const [publicTransportRating, setPublicTransportRating] = useState(0);
+  const [emergencyAccessRating, setEmergencyAccessRating] = useState(0);
+  const [overallSafetyScore, setOverallSafetyScore] = useState(0);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [areaReports, setAreaReports] = useState<AreaReport[]>([]);
+  const [currentAreaScore, setCurrentAreaScore] = useState<number | null>(null);
   const [showNavigation, setShowNavigation] = useState(false);
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [mapInitialized, setMapInitialized] = useState(false);
   const [useDemoMode, setUseDemoMode] = useState(false);
+  const [travelMode, setTravelMode] = useState<TravelMode>('WALKING');
+  const [showVision, setShowVision] = useState(false);
+  const [appRating, setAppRating] = useState(0);
+  const [appFeedback, setAppFeedback] = useState('');
+  const [hasSubmittedAppFeedback, setHasSubmittedAppFeedback] = useState(false);
+  const [isLoadingAppFeedback, setIsLoadingAppFeedback] = useState(false);
+  const [isSubmittingAppFeedback, setIsSubmittingAppFeedback] = useState(false);
+  const [showThankYou, setShowThankYou] = useState(false);
   
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Check if user has already submitted app feedback
+  useEffect(() => {
+    const checkExistingFeedback = async () => {
+      setIsLoadingAppFeedback(true);
+      try {
+        const existing = await firebaseSafetyService.getExistingAppFeedback();
+        if (existing) {
+          setAppRating(existing.rating);
+          setAppFeedback(existing.feedbackText || '');
+          setHasSubmittedAppFeedback(true);
+        }
+      } catch (error) {
+        console.error('Error checking existing feedback:', error);
+      } finally {
+        setIsLoadingAppFeedback(false);
+      }
+    };
+    checkExistingFeedback();
+  }, [showVision]);
 
   // Initialize map when component mounts
   useEffect(() => {
@@ -130,7 +192,7 @@ export default function SafeRoute() {
       
       if (useDemoMode) {
         // Use mock service in demo mode
-        const mockRoutes = await mockGoogleMapsService.calculateRoutes(startLocation, destination);
+        const mockRoutes = await mockGoogleMapsService.calculateRoutes(startLocation, destination, travelMode);
         // Convert mock routes to RouteData format
         fetchedRoutes = mockRoutes.map((route: MockRouteData, index: number) => ({
           id: route.id,
@@ -157,55 +219,133 @@ export default function SafeRoute() {
         fetchedRoutes = await googleMapsService.getRoutes(
           startLocation,
           destination,
-          travelTime
+          travelTime,
+          travelMode
         );
+        
+        // If Google Maps returns fewer than 3 routes, we still show what we have
+        // We DON'T create fake duplicates - that would be misleading
+        // Google Maps returns alternative routes only when they are genuinely different
+        console.log(`📍 Google Maps returned ${fetchedRoutes.length} route(s)`);
+        
+        // Rename routes based on their position if needed
+        fetchedRoutes = fetchedRoutes.map((route, index) => ({
+          ...route,
+          name: index === 0 ? 'Recommended Route' : index === 1 ? 'Alternative Route' : 'Quick Route',
+          type: (index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest') as 'safe' | 'balanced' | 'fastest'
+        }));
       }
 
       if (fetchedRoutes.length === 0) {
         throw new Error('No routes found');
       }
 
-      setRoutes(fetchedRoutes);
-      setSelectedRoute(fetchedRoutes[0]);
+      console.log('📍 Total routes fetched:', fetchedRoutes.length);
+      console.log('📍 Routes:', fetchedRoutes.map(r => r.name));
 
-      toast({
-        title: 'Routes Found',
-        description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''}`
+      // ============== SAFETY SCORING ENGINE ==============
+      // Calculate safety scores using our custom formula
+      // Use selected travel time instead of device time
+      const selectedHour = parseInt(travelTime.split(':')[0], 10);
+      const environment: EnvironmentData = {
+        currentHour: selectedHour,
+        weatherCondition: 'clear', // TODO: Integrate weather API
+      };
+
+      // Convert routes to input format for safety scorer
+      const routeInputs: RouteInputData[] = fetchedRoutes.map(route => {
+        const distanceKm = parseDistanceToKm(route.distance);
+        const durationMin = parseDurationToMin(route.duration);
+        const turnCount = route.steps?.length || 5;
+        
+        // Detect road type from route summary/steps
+        const routeSummary = route.summary || route.name || '';
+        const roadType = detectRoadType(routeSummary);
+        
+        // Get crime level for destination area
+        const crimeLevel = getCrimeLevelForLocation(destination);
+        
+        // Estimate lighting based on road type and SELECTED time
+        const lightingLevel = estimateLightingLevel(roadType, selectedHour);
+
+        return {
+          routeId: route.id,
+          distanceKm,
+          durationMin,
+          turnCount,
+          roadType,
+          crimeLevel,
+          lightingLevel,
+        };
       });
 
-      // Analyze routes with Gemini AI (runs NON-BLOCKING in background)
-      // This ensures the map and routes display immediately
-      console.log('🚀 Starting Gemini analysis in the background (non-blocking)');
-      geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime, 8000)
-        .then(analyses => {
-          console.log('✅ Gemini analysis completed in background');
-          setSafetyAnalyses(analyses);
+      // Calculate safety scores for all routes
+      const safetyResults = safetyScorer.calculateMultipleRoutesSafety(routeInputs, environment);
+      console.log('🛡️ Safety scores calculated:', safetyResults.map(r => ({ id: r.routeId, score: r.safetyScore })));
 
-          // Update routes with AI-enhanced safety scores
-          const updatedRoutes = fetchedRoutes.map(route => {
-            const analysis = analyses.get(route.id);
-            if (analysis) {
-              return { ...route, safetyScore: analysis.safetyScore };
-            }
-            return route;
-          });
+      // Update routes with calculated safety scores
+      const scoredRoutes = fetchedRoutes.map((route, index) => {
+        const result = safetyResults[index];
+        return {
+          ...route,
+          safetyScore: result.safetyScore,
+          name: index === 0 ? 'Recommended Route' : index === 1 ? 'Alternative Route' : 'Quick Route',
+        };
+      });
 
-          setRoutes(updatedRoutes);
-
-          toast({
-            title: 'Analysis Complete',
-            description: `AI safety analysis complete for ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''}`,
-          });
-        })
-        .catch(error => {
-          console.error('❌ Gemini analysis failed in background:', error);
-          // Routes are already displayed, just log the error
-          toast({
-            title: 'AI Analysis Unavailable',
-            description: 'Routes displayed with default safety scores',
-            variant: 'default'
-          });
+      // Convert safety results to SafetyAnalysis format for UI
+      const analysesMap = new Map<string, SafetyAnalysis>();
+      safetyResults.forEach(result => {
+        analysesMap.set(result.routeId, {
+          description: result.explanation,
+          highlights: result.highlights,
+          safetyScore: result.safetyScore,
+          recommendations: result.recommendations,
+          riskFactors: result.riskFactors,
+          rank: result.rank,
+          rawRiskScore: result.rawRiskScore,
         });
+      });
+
+      setRoutes(scoredRoutes);
+      setSelectedRoute(scoredRoutes[0]);
+      setSafetyAnalyses(analysesMap);
+
+      toast({
+        title: 'Routes Found & Analyzed',
+        description: `Found ${fetchedRoutes.length} route${fetchedRoutes.length > 1 ? 's' : ''} with safety scores`
+      });
+
+      // Optionally also run Gemini analysis for enhanced descriptions (non-blocking)
+      if (geminiService.isConfigured()) {
+        console.log('🚀 Starting Gemini analysis in the background for enhanced descriptions');
+        geminiService.analyzeMultipleRoutes(fetchedRoutes, travelTime, 8000)
+          .then(geminiAnalyses => {
+            console.log('✅ Gemini analysis completed');
+            // Merge Gemini descriptions with our safety scores - KEEP riskFactors!
+            const mergedAnalyses = new Map<string, SafetyAnalysis>();
+            safetyResults.forEach(result => {
+              const geminiAnalysis = geminiAnalyses.get(result.routeId);
+              mergedAnalyses.set(result.routeId, {
+                // Keep our calculated safety score and risk factors
+                safetyScore: result.safetyScore,
+                riskFactors: result.riskFactors,  // IMPORTANT: Keep risk factors!
+                rank: result.rank,                 // IMPORTANT: Keep rank!
+                rawRiskScore: result.rawRiskScore, // IMPORTANT: Keep raw score!
+                // Use Gemini description if available, otherwise our explanation
+                description: geminiAnalysis?.description || result.explanation,
+                // Merge highlights
+                highlights: geminiAnalysis?.highlights || result.highlights,
+                recommendations: geminiAnalysis?.recommendations || result.recommendations,
+              });
+            });
+            setSafetyAnalyses(mergedAnalyses);
+          })
+          .catch(error => {
+            console.error('❌ Gemini analysis failed:', error);
+            // Safety scores are already calculated, so no impact on user
+          });
+      }
 
     } catch (error) {
       console.error('Error finding routes:', error);
@@ -220,11 +360,179 @@ export default function SafeRoute() {
   };
 
   const handleRouteSelect = (route: RouteData) => {
-    setSelectedRoute(route);
-    const routeIndex = routes.findIndex(r => r.id === route.id);
-    if (routeIndex !== -1) {
-      googleMapsService.highlightRoute(routeIndex);
+    try {
+      setSelectedRoute(route);
+      const routeIndex = routes.findIndex(r => r.id === route.id);
+      // Only highlight route on Google Maps if not in demo mode
+      if (routeIndex !== -1 && !useDemoMode && mapInitialized) {
+        googleMapsService.highlightRoute(routeIndex);
+      }
+    } catch (error) {
+      console.error('Error selecting route:', error);
     }
+  };
+
+  // ============== COMMUNITY FEEDBACK HANDLERS ==============
+  
+  const [feedbackEligibility, setFeedbackEligibility] = useState<{ canSubmit: boolean; hoursRemaining?: number; message?: string } | null>(null);
+  
+  const handleOpenFeedback = async (type: 'safe' | 'unsafe') => {
+    setFeedbackType(type);
+    setFeedbackText('');
+    // Reset all ratings
+    setLightingRating(0);
+    setCrowdednessRating(0);
+    setRoadConditionRating(0);
+    setVisibilityRating(0);
+    setPublicTransportRating(0);
+    setEmergencyAccessRating(0);
+    setOverallSafetyScore(0);
+    
+    setIsGettingLocation(true);
+    setShowFeedback(true);
+    setFeedbackEligibility(null);
+    
+    try {
+      // Get user's current location
+      const location = await firebaseSafetyService.getCurrentLocation();
+      setUserLocation(location);
+      
+      // Get current area safety score
+      const gridId = getGridId(location.lat, location.lng);
+      const score = await firebaseSafetyService.getAreaSafetyScore(gridId);
+      setCurrentAreaScore(score);
+      
+      // Check if user can submit feedback (24-hour cooldown)
+      const eligibility = await firebaseSafetyService.checkFeedbackEligibility(gridId);
+      setFeedbackEligibility(eligibility);
+      
+      // Get recent reports for this area
+      const reports = await firebaseSafetyService.getAreaReports(gridId, 5);
+      setAreaReports(reports);
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      toast({
+        title: 'Location Error',
+        description: error instanceof Error ? error.message : 'Failed to get your location. Please enable location access.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!userLocation || feedbackType === null) {
+      toast({
+        title: 'Error',
+        description: 'Location not available. Please try again.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    // Validate compulsory ratings
+    if (lightingRating === 0 || crowdednessRating === 0 || roadConditionRating === 0) {
+      toast({
+        title: 'Missing Required Ratings',
+        description: 'Please rate Lighting, Crowdedness, and Road Condition (required fields).',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    // Validate overall safety score
+    if (overallSafetyScore === 0) {
+      toast({
+        title: 'Missing Safety Score',
+        description: 'Please provide your overall safety score for this area.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setIsSubmittingFeedback(true);
+    
+    try {
+      // Prepare ratings object
+      const ratings: SafetyRatings = {
+        lighting: lightingRating,
+        crowdedness: crowdednessRating,
+        roadCondition: roadConditionRating,
+        visibility: visibilityRating,
+        publicTransport: publicTransportRating,
+        emergencyAccess: emergencyAccessRating,
+        overallSafetyScore: overallSafetyScore,
+      };
+      
+      const result = await firebaseSafetyService.submitSafetyFeedback(
+        userLocation.lat,
+        userLocation.lng,
+        feedbackType === 'safe',
+        feedbackText.trim() || undefined,
+        ratings
+      );
+      
+      if (result.success) {
+        toast({
+          title: feedbackType === 'safe' ? '✓ Area Marked Safe' : '⚠ Area Reported',
+          description: result.message,
+        });
+        
+        // Update local state with new score
+        if (result.newSafetyScore !== undefined) {
+          setCurrentAreaScore(result.newSafetyScore);
+        }
+        
+        // Close dialog and reset all states
+        setShowFeedback(false);
+        setFeedbackType(null);
+        setFeedbackText('');
+        setUserLocation(null);
+        setLightingRating(0);
+        setCrowdednessRating(0);
+        setRoadConditionRating(0);
+        setVisibilityRating(0);
+        setPublicTransportRating(0);
+        setEmergencyAccessRating(0);
+        setOverallSafetyScore(0);
+        
+      } else {
+        toast({
+          title: 'Feedback Error',
+          description: result.message,
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to submit feedback. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  const handleCloseFeedback = () => {
+    setShowFeedback(false);
+    setFeedbackType(null);
+    setFeedbackText('');
+    setUserLocation(null);
+    setAreaReports([]);
+    setCurrentAreaScore(null);
+    setFeedbackEligibility(null);
+    // Reset all ratings
+    setLightingRating(0);
+    setCrowdednessRating(0);
+    setRoadConditionRating(0);
+    setVisibilityRating(0);
+    setPublicTransportRating(0);
+    setEmergencyAccessRating(0);
+    setOverallSafetyScore(0);
   };
 
   const scrollToMap = () => {
@@ -233,18 +541,6 @@ export default function SafeRoute() {
 
   const scrollToTop = () => {
     heroRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-safe';
-    if (score >= 60) return 'text-caution';
-    return 'text-unsafe';
-  };
-
-  const getScoreBg = (score: number) => {
-    if (score >= 80) return 'bg-safe/10 border-safe';
-    if (score >= 60) return 'bg-caution/10 border-caution';
-    return 'bg-unsafe/10 border-unsafe';
   };
 
   const currentAnalysis = selectedRoute ? safetyAnalyses.get(selectedRoute.id) : null;
@@ -259,8 +555,14 @@ export default function SafeRoute() {
             <h1 className="text-xl xl:text-2xl font-bold text-foreground">SafeRoute</h1>
           </div>
           <div className="flex items-center gap-2 xl:gap-4">
-            <Button variant="outline" size="sm" onClick={scrollToMap} className="text-xs xl:text-sm">
-              Try Demo
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowVision(true)} 
+              className="text-xs xl:text-sm gap-1"
+            >
+              <Eye className="w-4 h-4" />
+              <span className="hidden sm:inline">Our Vision</span>
             </Button>
             {selectedRoute && (
               <Button 
@@ -286,7 +588,7 @@ export default function SafeRoute() {
             AI-powered route guidance designed with women's safety first.
           </p>
           <p className="text-sm xl:text-base text-primary font-medium">
-            Not the fastest route. The safest one.
+            Your safety is our priority. Navigate with confidence.
           </p>
           <Button 
             size="lg" 
@@ -366,6 +668,44 @@ export default function SafeRoute() {
                 />
               </div>
               
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm xl:text-base">
+                  <Car className="w-4 h-4" />
+                  Travel Mode
+                </Label>
+                <Select value={travelMode} onValueChange={(value) => setTravelMode(value as TravelMode)}>
+                  <SelectTrigger className="bg-input border-border text-sm xl:text-base">
+                    <SelectValue placeholder="Select travel mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WALKING">
+                      <div className="flex items-center gap-2">
+                        <Footprints className="w-4 h-4" />
+                        Walking
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="TWO_WHEELER">
+                      <div className="flex items-center gap-2">
+                        <Bike className="w-4 h-4" />
+                        Two Wheeler (Bike/Scooter)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="DRIVING">
+                      <div className="flex items-center gap-2">
+                        <Car className="w-4 h-4" />
+                        Four Wheeler (Car)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="TRANSIT">
+                      <div className="flex items-center gap-2">
+                        <Bus className="w-4 h-4" />
+                        Public Transport (Bus/Toto)
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <Button 
                 onClick={handleFindRoutes}
                 disabled={!destination.trim() || !startLocation.trim() || isLoadingRoutes}
@@ -425,31 +765,230 @@ export default function SafeRoute() {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-lg xl:text-xl">Why this route is safer</CardTitle>
+                  <CardTitle className="text-lg xl:text-xl">Safety Score Breakdown</CardTitle>
                   <CardDescription className="mt-2 text-sm xl:text-base">
-                    {currentAnalysis.description}
+                    See exactly how this route's safety score is calculated
                   </CardDescription>
                 </div>
-                <Badge className={`${getScoreBg(currentAnalysis.safetyScore)} ${getScoreColor(currentAnalysis.safetyScore)} text-xs xl:text-sm`}>
-                  Safety Score: {currentAnalysis.safetyScore}
-                </Badge>
+                <div className="flex flex-col items-end gap-1">
+                  {(() => {
+                    const score = currentAnalysis.safetyScore || 70;
+                    const category = score >= 75 ? { label: 'Safest Option', color: 'bg-green-500/20 text-green-400 border-green-500/50' }
+                      : score >= 58 ? { label: 'Moderate Option', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' }
+                      : { label: 'Least Safe Option', color: 'bg-orange-500/20 text-orange-400 border-orange-500/50' };
+                    return (
+                      <>
+                        <Badge className={`${category.color} border text-sm xl:text-base font-bold px-3 py-1`}>
+                          {score}/100
+                        </Badge>
+                        <span className={`text-xs xl:text-sm font-medium ${score >= 75 ? 'text-green-400' : score >= 58 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                          {category.label}
+                        </span>
+                        {currentAnalysis.rank && (
+                          <span className="text-xs text-muted-foreground">Rank #{currentAnalysis.rank} of {routes.length}</span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <h4 className="font-medium text-sm xl:text-base">Key Safety Features:</h4>
-                <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                  {currentAnalysis.highlights.map((highlight, index) => (
-                    <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
-                      <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                      {highlight}
-                    </li>
-                  ))}
-                </ul>
+              <div className="space-y-4">
+                {/* Score Calculation Breakdown */}
+                {currentAnalysis.riskFactors && (() => {
+                  const rf = currentAnalysis.riskFactors;
+                  
+                  // Get selected hour for display
+                  const selectedHour = parseInt(travelTime.split(':')[0], 10);
+                  const timeLabel = selectedHour >= 22 || selectedHour <= 5 
+                    ? `Late night (${travelTime})` 
+                    : selectedHour >= 19 || selectedHour <= 7 
+                    ? `Evening/morning (${travelTime})` 
+                    : `Daytime (${travelTime})`;
+                  
+                  // Calculate actual points for each factor (points = (1 - risk) * weight * 100)
+                  const factors = [
+                    { 
+                      name: 'Crime Risk', 
+                      emoji: '🚨',
+                      weight: 25, 
+                      risk: rf.crimeRisk,
+                      points: Math.round((1 - rf.crimeRisk) * 25),
+                      description: rf.crimeRisk <= 0.3 ? 'Low crime area' : rf.crimeRisk <= 0.6 ? 'Moderate crime area' : 'Higher crime area'
+                    },
+                    { 
+                      name: 'Lighting', 
+                      emoji: '💡',
+                      weight: 15, 
+                      risk: rf.lightingRisk,
+                      points: Math.round((1 - rf.lightingRisk) * 15),
+                      description: rf.lightingRisk <= 0.3 ? 'Well-lit streets' : rf.lightingRisk <= 0.6 ? 'Partially lit' : 'Limited lighting'
+                    },
+                    { 
+                      name: 'Time of Day', 
+                      emoji: '🌙',
+                      weight: 15, 
+                      risk: rf.timeRisk,
+                      points: Math.round((1 - rf.timeRisk) * 15),
+                      description: timeLabel
+                    },
+                    { 
+                      name: 'Road Type', 
+                      emoji: '🛣️',
+                      weight: 10, 
+                      risk: rf.roadTypeRisk,
+                      points: Math.round((1 - rf.roadTypeRisk) * 10),
+                      description: rf.roadTypeRisk <= 0.4 ? 'Main roads/highways' : rf.roadTypeRisk <= 0.6 ? 'Residential streets' : 'Narrow lanes/alleys'
+                    },
+                    { 
+                      name: 'Distance', 
+                      emoji: '📏',
+                      weight: 10, 
+                      risk: rf.distanceRisk,
+                      points: Math.round((1 - rf.distanceRisk) * 10),
+                      description: rf.distanceRisk <= 0.3 ? 'Short distance (<3km)' : rf.distanceRisk <= 0.6 ? 'Moderate distance' : 'Long distance (>6km)'
+                    },
+                    { 
+                      name: 'Duration', 
+                      emoji: '⏱️',
+                      weight: 10, 
+                      risk: rf.durationRisk,
+                      points: Math.round((1 - rf.durationRisk) * 10),
+                      description: rf.durationRisk <= 0.3 ? 'Quick trip (<10min)' : rf.durationRisk <= 0.6 ? 'Moderate duration' : 'Long duration (>20min)'
+                    },
+                    { 
+                      name: 'Weather', 
+                      emoji: '🌦️',
+                      weight: 10, 
+                      risk: rf.weatherRisk,
+                      points: Math.round((1 - rf.weatherRisk) * 10),
+                      description: rf.weatherRisk <= 0.3 ? 'Clear weather' : rf.weatherRisk <= 0.6 ? 'Cloudy/light rain' : 'Poor visibility'
+                    },
+                    { 
+                      name: 'Route Complexity', 
+                      emoji: '🔄',
+                      weight: 5, 
+                      risk: rf.turnRisk,
+                      points: Math.round((1 - rf.turnRisk) * 5),
+                      description: rf.turnRisk <= 0.3 ? 'Straightforward route' : rf.turnRisk <= 0.6 ? 'Some turns' : 'Complex route'
+                    },
+                  ];
+
+                  const totalPoints = factors.reduce((sum, f) => sum + f.points, 0);
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Total Score Summary */}
+                      <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                        <h4 className="font-semibold text-base xl:text-lg mb-2 flex items-center gap-2">
+                          <Shield className="w-5 h-5 text-primary" />
+                          Total Score Calculation
+                        </h4>
+                        <div className="flex flex-wrap gap-2 text-sm">
+                          {factors.map((f, i) => (
+                            <span key={f.name} className="inline-flex items-center">
+                              <span className={`font-bold ${f.points >= f.weight * 0.7 ? 'text-green-400' : f.points >= f.weight * 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                {f.points}
+                              </span>
+                              {i < factors.length - 1 && <span className="text-muted-foreground mx-1">+</span>}
+                            </span>
+                          ))}
+                          <span className="text-muted-foreground mx-1">=</span>
+                          <span className="font-bold text-primary text-base">{totalPoints} points</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Raw score: {totalPoints}/100 → Relative score: {currentAnalysis.safetyScore}/100 (adjusted based on route comparison)
+                        </p>
+                      </div>
+
+                      {/* Individual Factor Breakdown */}
+                      <h4 className="font-medium text-sm xl:text-base flex items-center gap-2 pt-2">
+                        <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                        Factor-by-Factor Breakdown
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {factors.map((factor) => {
+                          const percentage = (factor.points / factor.weight) * 100;
+                          const colorClass = percentage >= 70 ? 'text-green-400' : percentage >= 40 ? 'text-yellow-400' : 'text-red-400';
+                          const bgColorClass = percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+                          
+                          return (
+                            <div key={factor.name} className="bg-secondary/50 rounded-lg p-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs xl:text-sm font-medium">
+                                  {factor.emoji} {factor.name}
+                                </span>
+                                <div className="text-right">
+                                  <span className={`text-sm xl:text-base font-bold ${colorClass}`}>
+                                    {factor.points}/{factor.weight}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground ml-1">pts</span>
+                                </div>
+                              </div>
+                              
+                              {/* Progress bar */}
+                              <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
+                                <div 
+                                  className={`h-2.5 rounded-full ${bgColorClass} transition-all`}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                              
+                              {/* Description and weight info */}
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-muted-foreground">
+                                  {factor.description}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Weight: {factor.weight}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Color Legend */}
+                      <div className="flex flex-wrap items-center gap-4 pt-2 text-xs">
+                        <span className="text-muted-foreground font-medium">Score Guide:</span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                          <span className="text-muted-foreground">70%+ of max points (Good)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                          <span className="text-muted-foreground">40-69% (Moderate)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                          <span className="text-muted-foreground">&lt;40% (Needs attention)</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Key Highlights */}
+                {currentAnalysis.highlights && currentAnalysis.highlights.length > 0 && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <h4 className="font-medium text-sm xl:text-base">Key Highlights:</h4>
+                    <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                      {currentAnalysis.highlights.map((highlight, index) => (
+                        <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
+                          <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                          {highlight}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 
+                {/* Recommendations */}
                 {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
-                  <>
-                    <h4 className="font-medium text-sm xl:text-base mt-4">Safety Recommendations:</h4>
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <h4 className="font-medium text-sm xl:text-base">Safety Recommendations:</h4>
                     <ul className="space-y-1">
                       {currentAnalysis.recommendations.map((rec, index) => (
                         <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
@@ -458,15 +997,13 @@ export default function SafeRoute() {
                         </li>
                       ))}
                     </ul>
-                  </>
+                  </div>
                 )}
 
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
                   <Sparkles className="w-4 h-4 text-primary" />
                   <span className="text-xs xl:text-sm text-muted-foreground">
-                    {geminiService.isConfigured() 
-                      ? 'Powered by Gemini AI' 
-                      : 'Using enhanced safety analysis'}
+                    Transparency first: Every point is calculated and shown • Final score is relative to available alternatives
                   </span>
                 </div>
               </div>
@@ -478,11 +1015,62 @@ export default function SafeRoute() {
       {/* Route Comparison Section */}
       {routes.length > 0 && (
         <section className="container mx-auto px-4 xl:px-8 py-6 xl:py-8">
-          <h3 className="text-xl xl:text-2xl font-bold text-foreground mb-4 xl:mb-6">Compare Routes</h3>
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
+          <div className="flex flex-col gap-4 mb-4 xl:mb-6">
+            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+              <h3 className="text-xl xl:text-2xl font-bold text-foreground">
+                Compare Routes
+                {routes.length < 3 && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    ({routes.length} route{routes.length > 1 ? 's' : ''} available)
+                  </span>
+                )}
+              </h3>
+              
+              {/* Relative Score Legend */}
+              <div className="flex flex-wrap items-center gap-3 text-xs xl:text-sm">
+                <span className="text-muted-foreground font-medium">Relative Score:</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-muted-foreground">75-92 Safest</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <span className="text-muted-foreground">58-74 Moderate</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                  <span className="text-muted-foreground">42-57 Least Safe</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Relative Scoring Notice */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+              <div className="text-xs xl:text-sm text-blue-300">
+                <span className="font-semibold">Relative Safety Scoring:</span> Scores are calculated by comparing routes against each other. 
+                The safest route among alternatives gets the highest score. This is <span className="font-semibold">NOT</span> an absolute safety rating of the road.
+              </div>
+            </div>
+          </div>
+          
+          <div className={`grid grid-cols-1 gap-4 xl:gap-6 ${
+            routes.length === 1 ? 'xl:grid-cols-1 max-w-md mx-auto' : 
+            routes.length === 2 ? 'xl:grid-cols-2 max-w-2xl mx-auto' : 
+            'xl:grid-cols-3'
+          }`}>
             {routes.map((route) => {
               const analysis = safetyAnalyses.get(route.id);
               const score = analysis?.safetyScore || route.safetyScore;
+              
+              // Get safety category based on score
+              // Get safety category based on relative score ranges
+              const getSafetyCategory = (s: number) => {
+                if (s >= 75) return { label: 'Safest Option', color: 'bg-green-500/20 text-green-400 border-green-500/50' };
+                if (s >= 58) return { label: 'Moderate Option', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' };
+                return { label: 'Least Safe', color: 'bg-orange-500/20 text-orange-400 border-orange-500/50' };
+              };
+              const safetyCategory = getSafetyCategory(score);
               
               return (
                 <Card 
@@ -495,9 +1083,14 @@ export default function SafeRoute() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base xl:text-lg">{route.name}</CardTitle>
-                      <Badge className={`${getScoreBg(score)} ${getScoreColor(score)} text-xs`}>
-                        {score}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge className={`${safetyCategory.color} border text-xs font-bold px-2 py-0.5`}>
+                          {score}/100
+                        </Badge>
+                        <span className={`text-xs ${score >= 75 ? 'text-green-400' : score >= 58 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                          {safetyCategory.label}
+                        </span>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -550,29 +1143,313 @@ export default function SafeRoute() {
               Community Safety Feedback
             </CardTitle>
             <CardDescription className="text-sm xl:text-base">
-              Help others by sharing your experience. All reports are anonymous.
+              Help others by sharing your experience. Your feedback improves route safety for everyone.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col xl:flex-row gap-3 xl:gap-4">
-              <Button 
-                onClick={() => setShowFeedback(true)}
-                variant="outline"
-                className="flex-1 text-sm xl:text-base"
-              >
-                Mark Area Safe
-              </Button>
-              <Button 
-                onClick={() => setShowFeedback(true)}
-                variant="outline"
-                className="flex-1 text-sm xl:text-base"
-              >
-                Report Unsafe Area
-              </Button>
+            <div className="space-y-4">
+              {/* How it works */}
+              <div className="bg-secondary/50 rounded-lg p-3 text-xs xl:text-sm text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">How it works:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Your current location is converted to an area grid (~200m radius)</li>
+                  <li>Feedback is aggregated with other users in the same area</li>
+                  <li>You can submit feedback once per area every 24 hours</li>
+                </ul>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex flex-col xl:flex-row gap-3 xl:gap-4">
+                <Button 
+                  onClick={() => handleOpenFeedback('safe')}
+                  variant="outline"
+                  className="flex-1 text-sm xl:text-base border-green-500/50 hover:bg-green-500/10 hover:text-green-400"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" />
+                  Mark Area Safe
+                </Button>
+                <Button 
+                  onClick={() => handleOpenFeedback('unsafe')}
+                  variant="outline"
+                  className="flex-1 text-sm xl:text-base border-red-500/50 hover:bg-red-500/10 hover:text-red-400"
+                >
+                  <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                  Report Unsafe Area
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       </section>
+
+      {/* Community Feedback Dialog */}
+      <Dialog open={showFeedback} onOpenChange={handleCloseFeedback}>
+        <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {feedbackType === 'safe' ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  Mark Area as Safe
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-5 h-5 text-red-500" />
+                  Report Unsafe Area
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Rate this area to help others stay safe
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Location Status - Full width loading state */}
+            {isGettingLocation ? (
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
+                <p className="text-sm font-medium">Detecting your location...</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Please allow location access if prompted by your browser
+                </p>
+              </div>
+            ) : !userLocation ? (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-center">
+                <XCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-red-400">Location unavailable</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Please enable location access in your browser settings
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => handleOpenFeedback(feedbackType || 'safe')}
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Location Successfully Detected */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="font-medium text-green-400">Location Detected</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPinned className="w-4 h-4" />
+                    <span>Area Grid: {getGridId(userLocation.lat, userLocation.lng)}</span>
+                  </div>
+                  
+                  {/* Current Area Score */}
+                  {currentAreaScore !== null && (
+                    <div className="mt-2 flex items-center gap-2 text-sm">
+                      <Shield className="w-4 h-4 text-primary" />
+                      <span>Community score for this area:</span>
+                      <Badge className={`${
+                        currentAreaScore >= 70 ? 'bg-green-500/20 text-green-400' :
+                        currentAreaScore >= 40 ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-red-500/20 text-red-400'
+                      }`}>
+                        {currentAreaScore}/100
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+                
+                {/* 24-Hour Cooldown Warning */}
+                {feedbackEligibility && !feedbackEligibility.canSubmit && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="w-4 h-4 text-yellow-500" />
+                      <span className="font-medium text-yellow-400">Cooldown Active</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {feedbackEligibility.message}
+                    </p>
+                  </div>
+                )}
+            
+                {/* Rating Section - Only show if eligible */}
+                {(!feedbackEligibility || feedbackEligibility.canSubmit) && (
+                  <>
+                    {/* Star Ratings Section */}
+                    <div className="space-y-4 bg-secondary/30 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Star className="w-4 h-4 text-yellow-400" />
+                        <span className="text-sm font-semibold">Rate This Area</span>
+                      </div>
+                      
+                      {/* Compulsory Ratings */}
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground border-b border-border pb-2">Required Ratings</p>
+                        
+                        <StarRating
+                          rating={lightingRating}
+                          onRatingChange={setLightingRating}
+                          label="Street Lighting"
+                          required={true}
+                          size="md"
+                        />
+                        
+                        <StarRating
+                          rating={crowdednessRating}
+                          onRatingChange={setCrowdednessRating}
+                          label="Area Crowdedness"
+                          required={true}
+                          size="md"
+                        />
+                        
+                        <StarRating
+                          rating={roadConditionRating}
+                          onRatingChange={setRoadConditionRating}
+                          label="Road/Sidewalk Condition"
+                          required={true}
+                          size="md"
+                        />
+                      </div>
+                      
+                      {/* Optional Ratings */}
+                      <div className="space-y-3 pt-2">
+                        <p className="text-xs text-muted-foreground border-b border-border pb-2">Optional Ratings</p>
+                        
+                        <StarRating
+                          rating={visibilityRating}
+                          onRatingChange={setVisibilityRating}
+                          label="Visibility (Clear Sightlines)"
+                          required={false}
+                          size="md"
+                        />
+                        
+                        <StarRating
+                          rating={publicTransportRating}
+                          onRatingChange={setPublicTransportRating}
+                          label="Public Transport Access"
+                          required={false}
+                          size="md"
+                        />
+                        
+                        <StarRating
+                          rating={emergencyAccessRating}
+                          onRatingChange={setEmergencyAccessRating}
+                          label="Emergency Access Points"
+                          required={false}
+                          size="md"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Overall Safety Score */}
+                    <div className="bg-secondary/30 rounded-lg p-4">
+                      <SafetyScoreSlider
+                        value={overallSafetyScore}
+                        onChange={setOverallSafetyScore}
+                        label="Your Overall Safety Score"
+                        required={true}
+                      />
+                    </div>
+                    
+                    {/* Experience Text (Optional) */}
+                    <div className="space-y-2">
+                      <Label htmlFor="experience" className="text-sm flex items-center gap-1">
+                        Share your experience
+                        <span className="text-muted-foreground text-xs">(optional)</span>
+                      </Label>
+                      <Textarea
+                        id="experience"
+                        placeholder={
+                          feedbackType === 'safe' 
+                            ? "e.g., Well-lit streets, police patrol visible, busy area..."
+                            : "e.g., Poor lighting, isolated area, suspicious activity..."
+                        }
+                        value={feedbackText}
+                        onChange={(e) => setFeedbackText(e.target.value)}
+                        className="min-h-[80px] text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Your detailed feedback helps others understand the area better.
+                      </p>
+                    </div>
+                  </>
+                )}
+            
+                {/* Recent Reports in this Area */}
+                {areaReports.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Recent reports in this area:</Label>
+                    <div className="max-h-32 overflow-y-auto space-y-2">
+                      {areaReports.slice(0, 3).map((report, index) => (
+                        <div 
+                          key={report.id || index} 
+                          className={`text-xs p-2 rounded ${
+                            report.isSafe 
+                              ? 'bg-green-500/10 border border-green-500/30' 
+                              : 'bg-red-500/10 border border-red-500/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1 mb-1">
+                            {report.isSafe ? (
+                              <CheckCircle2 className="w-3 h-3 text-green-400" />
+                            ) : (
+                              <XCircle className="w-3 h-3 text-red-400" />
+                            )}
+                            <span className={report.isSafe ? 'text-green-400' : 'text-red-400'}>
+                              {report.isSafe ? 'Safe' : 'Unsafe'}
+                            </span>
+                            {report.ratings && (
+                              <span className="ml-auto text-muted-foreground">
+                                Score: {report.ratings.overallSafetyScore}/10
+                              </span>
+                            )}
+                          </div>
+                          {report.experienceText && (
+                            <p className="text-muted-foreground">{report.experienceText}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2 border-t border-border">
+            <Button
+              variant="outline"
+              onClick={handleCloseFeedback}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitFeedback}
+              disabled={!userLocation || isSubmittingFeedback || isGettingLocation || (feedbackEligibility !== null && !feedbackEligibility.canSubmit)}
+              className={`flex-1 ${
+                feedbackEligibility && !feedbackEligibility.canSubmit
+                  ? 'bg-gray-600 cursor-not-allowed'
+                  : feedbackType === 'safe' 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {isSubmittingFeedback ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : feedbackEligibility && !feedbackEligibility.canSubmit ? (
+                <>Wait {feedbackEligibility.hoursRemaining}h</>
+              ) : (
+                <>Submit Feedback</>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="container mx-auto px-4 xl:px-8 py-8 xl:py-12 border-t border-border mt-8 xl:mt-12">
@@ -624,42 +1501,228 @@ export default function SafeRoute() {
         </DialogContent>
       </Dialog>
 
-      {/* Community Feedback Modal */}
-      <Dialog open={showFeedback} onOpenChange={setShowFeedback}>
-        <DialogContent className="bg-card">
+      {/* Our Vision & App Feedback Dialog */}
+      <Dialog open={showVision} onOpenChange={setShowVision}>
+        <DialogContent className="bg-card border-border max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-lg xl:text-xl">Submit Safety Feedback</DialogTitle>
-            <DialogDescription className="text-sm xl:text-base">
-              Your anonymous feedback helps keep the community safe.
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2 text-lg xl:text-xl">
+              <Heart className="w-5 h-5 text-primary" />
+              Our Vision
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="location" className="text-sm xl:text-base">Location</Label>
-              <Input 
-                id="location"
-                placeholder="Street name or area"
-                className="bg-input border-border text-sm xl:text-base"
-              />
+          
+          <div className="space-y-4 py-2">
+            {/* Vision Statement */}
+            <div className="space-y-3">
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                <p className="text-sm xl:text-base leading-relaxed text-foreground">
+                  <strong>SafeRoute</strong> is built with one mission: <span className="text-primary">to help women travel safer at night</span>.
+                </p>
+              </div>
+              
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span><strong className="text-foreground">Safety First</strong> — We prioritize the safest route, not the fastest one</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span><strong className="text-foreground">AI-Powered</strong> — Smart analysis of lighting, crime data, foot traffic & more</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Users className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span><strong className="text-foreground">Community Driven</strong> — Real feedback from real users improves safety scores</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Eye className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span><strong className="text-foreground">Transparent</strong> — Every safety score is explained with full breakdown</span>
+                </div>
+              </div>
+              
+              <p className="text-xs text-muted-foreground italic text-center pt-2 border-t border-border">
+                "Not the fastest route. The safest one."
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="feedback" className="text-sm xl:text-base">Details</Label>
-              <Textarea 
-                id="feedback"
-                placeholder="Describe what you observed..."
-                className="bg-input border-border min-h-[100px] text-sm xl:text-base"
-              />
+
+            {/* App Feedback Section */}
+            <div className="border-t border-border pt-4 space-y-3">
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                <Send className="w-4 h-4 text-primary" />
+                Rate & Send Feedback
+              </h4>
+              
+              {isLoadingAppFeedback ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
+                </div>
+              ) : hasSubmittedAppFeedback ? (
+                /* Already submitted - show locked rating */
+                <div className="space-y-3">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className="text-sm font-medium text-green-400">Feedback Submitted</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      You have already given your feedback. Thank you for your support!
+                    </p>
+                  </div>
+                  
+                  {/* Show their rating (locked) */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Your Rating:</Label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                          key={star}
+                          className={`w-6 h-6 ${
+                            star <= appRating 
+                              ? 'fill-yellow-400 text-yellow-400' 
+                              : 'text-gray-600'
+                          }`}
+                        />
+                      ))}
+                      <span className="ml-2 text-sm text-muted-foreground">({appRating}/5)</span>
+                    </div>
+                  </div>
+                  
+                  {/* Show their feedback if any */}
+                  {appFeedback && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Your Feedback:</Label>
+                      <p className="text-sm text-foreground bg-secondary/50 rounded p-2 italic">
+                        "{appFeedback}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Not yet submitted - show form */
+                <>
+                  {/* Star Rating */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">How would you rate SafeRoute?</Label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setAppRating(star)}
+                          className="focus:outline-none transition-transform hover:scale-110"
+                        >
+                          <Star 
+                            className={`w-7 h-7 ${
+                              star <= appRating 
+                                ? 'fill-yellow-400 text-yellow-400' 
+                                : 'text-gray-500 hover:text-yellow-400'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Feedback Text */}
+                  <div className="space-y-2">
+                    <Label htmlFor="appFeedback" className="text-xs text-muted-foreground">
+                      Your feedback helps us improve (optional)
+                    </Label>
+                    <Textarea
+                      id="appFeedback"
+                      placeholder="What do you like? What can we improve?"
+                      value={appFeedback}
+                      onChange={(e) => setAppFeedback(e.target.value)}
+                      className="min-h-[60px] text-sm"
+                    />
+                  </div>
+                  
+                  {/* Submit Button */}
+                  <Button
+                    onClick={async () => {
+                      if (appRating === 0) {
+                        toast({
+                          title: 'Please select a rating',
+                          description: 'Tap the stars to rate SafeRoute',
+                          variant: 'destructive'
+                        });
+                        return;
+                      }
+                      
+                      setIsSubmittingAppFeedback(true);
+                      try {
+                        const result = await firebaseSafetyService.submitAppFeedback(appRating, appFeedback);
+                        
+                        if (result.success) {
+                          setHasSubmittedAppFeedback(true);
+                          setShowVision(false);
+                          setShowThankYou(true);
+                        } else {
+                          toast({
+                            title: 'Error',
+                            description: result.message,
+                            variant: 'destructive'
+                          });
+                        }
+                      } catch (error) {
+                        toast({
+                          title: 'Error',
+                          description: 'Failed to submit feedback. Please try again.',
+                          variant: 'destructive'
+                        });
+                      } finally {
+                        setIsSubmittingAppFeedback(false);
+                      }
+                    }}
+                    disabled={isSubmittingAppFeedback}
+                    className="w-full"
+                  >
+                    {isSubmittingAppFeedback ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Submit Feedback
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Note: Reports are anonymous and weighted by recency.
-            </p>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setShowFeedback(false)} className="flex-1 text-sm xl:text-base">
-              Cancel
-            </Button>
-            <Button onClick={() => setShowFeedback(false)} className="flex-1 text-sm xl:text-base">
-              Submit
+        </DialogContent>
+      </Dialog>
+
+      {/* Thank You Dialog */}
+      <Dialog open={showThankYou} onOpenChange={setShowThankYou}>
+        <DialogContent className="bg-card border-primary/50 max-w-sm text-center">
+          <div className="py-6 space-y-4">
+            <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center">
+              <Heart className="w-8 h-8 text-green-500" />
+            </div>
+            <DialogTitle className="text-xl">Thank You! 🙏</DialogTitle>
+            <DialogDescription className="text-base">
+              Your valuable feedback means a lot to us. We really appreciate you taking the time to help us improve SafeRoute.
+            </DialogDescription>
+            <div className="flex justify-center gap-1 py-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star 
+                  key={star}
+                  className={`w-6 h-6 ${
+                    star <= appRating 
+                      ? 'fill-yellow-400 text-yellow-400' 
+                      : 'text-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Your rating: <strong className="text-foreground">{appRating}/5 stars</strong>
+            </p>
+            <Button onClick={() => setShowThankYou(false)} className="w-full mt-4">
+              Continue
             </Button>
           </div>
         </DialogContent>

@@ -1,6 +1,8 @@
 // Mock Google Maps Service for Demo Mode
 // This allows the app to work without a valid Google Maps API key
 
+import type { TravelMode } from './googleMaps';
+
 export interface MockLocation {
   lat: number;
   lng: number;
@@ -87,7 +89,39 @@ class MockGoogleMapsService {
     };
   }
 
-  async calculateRoutes(start: string, destination: string): Promise<MockRouteData[]> {
+  // Get speed multiplier based on travel mode (minutes per km)
+  private getSpeedMultiplier(travelMode: TravelMode): number {
+    switch (travelMode) {
+      case 'WALKING':
+        return 12; // ~5 km/h = 12 min per km
+      case 'TWO_WHEELER':
+        return 2; // ~30 km/h = 2 min per km
+      case 'DRIVING':
+        return 2.5; // ~24 km/h in city traffic = 2.5 min per km
+      case 'TRANSIT':
+        return 4; // ~15 km/h average with stops = 4 min per km
+      default:
+        return 12;
+    }
+  }
+
+  // Get travel mode display name
+  private getTravelModeName(travelMode: TravelMode): string {
+    switch (travelMode) {
+      case 'WALKING':
+        return 'walking';
+      case 'TWO_WHEELER':
+        return 'by two-wheeler';
+      case 'DRIVING':
+        return 'by car';
+      case 'TRANSIT':
+        return 'by public transport';
+      default:
+        return '';
+    }
+  }
+
+  async calculateRoutes(start: string, destination: string, travelMode: TravelMode = 'WALKING'): Promise<MockRouteData[]> {
     await this.delay(800);
     
     const startLoc = await this.geocodeAddress(start);
@@ -95,7 +129,10 @@ class MockGoogleMapsService {
     
     // Calculate approximate distance
     const distance = this.calculateDistance(startLoc, destLoc);
-    const baseTime = Math.round(distance * 12); // ~12 min per km walking
+    const speedMultiplier = this.getSpeedMultiplier(travelMode);
+    const baseTime = Math.round(distance * speedMultiplier);
+    
+    const modeName = this.getTravelModeName(travelMode);
     
     // Generate 3 routes with different characteristics
     const routes: MockRouteData[] = [
@@ -103,7 +140,7 @@ class MockGoogleMapsService {
         id: 'route-1',
         name: 'Safest Route',
         distance: `${(distance * 1.15).toFixed(1)} km`,
-        duration: `${Math.round(baseTime * 1.15)} min`,
+        duration: `${Math.round(baseTime * 1.15)} min ${modeName}`,
         safetyScore: Math.floor(85 + Math.random() * 10), // 85-95
         polyline: this.generateMockPolyline(startLoc, destLoc, 0.15),
         steps: this.generateMockSteps(startLoc, destLoc, Math.round(baseTime * 1.15))
@@ -112,7 +149,7 @@ class MockGoogleMapsService {
         id: 'route-2',
         name: 'Balanced Route',
         distance: `${(distance * 1.05).toFixed(1)} km`,
-        duration: `${Math.round(baseTime * 1.05)} min`,
+        duration: `${Math.round(baseTime * 1.05)} min ${modeName}`,
         safetyScore: Math.floor(70 + Math.random() * 14), // 70-84
         polyline: this.generateMockPolyline(startLoc, destLoc, 0.05),
         steps: this.generateMockSteps(startLoc, destLoc, Math.round(baseTime * 1.05))
@@ -121,7 +158,7 @@ class MockGoogleMapsService {
         id: 'route-3',
         name: 'Fastest Route',
         distance: `${distance.toFixed(1)} km`,
-        duration: `${baseTime} min`,
+        duration: `${baseTime} min ${modeName}`,
         safetyScore: Math.floor(50 + Math.random() * 19), // 50-69
         polyline: this.generateMockPolyline(startLoc, destLoc, 0),
         steps: this.generateMockSteps(startLoc, destLoc, baseTime)
