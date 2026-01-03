@@ -620,7 +620,8 @@ export default function SafeRoute() {
 
     if (!win) {
       if (isMobileDevice()) {
-        window.location.href = waMeUrl;
+        // Force native intent - this will open WhatsApp or WhatsApp Business if installed
+        window.location.href = appUrl;
       } else {
         window.location.href = appUrl;
         setTimeout(() => {
