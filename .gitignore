@@ -30,7 +30,13 @@ history/*.json
 
 # Remote additions
 .env
+.env.*
 firebase-debug.log
 node_modules
-node_modules
 .vercel
+
+# Sensitive files - API keys
+.history/
+firebase/config.js
+src/config/firebase.js
+*.env*
