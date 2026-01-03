@@ -14,7 +14,7 @@ https://saferoute-three.vercel.app
 
 ## 🛠️ Tech Stack
 - React + TypeScript + Vite
-- Google Maps API (Directions, Places, Geocoding)
+- Google Maps JavaScript API (Directions, Places, Geocoding)
 - Google Gemini AI
 - Firebase Authentication
 - Tailwind CSS
