@@ -36,9 +36,12 @@ import { MockMap } from '@/components/MockMap';
 type SosSettings = {
   police: string;
   ambulance: string;
-  whatsapp: string;
-  whatsappList: string;
-  email: string;
+  whatsapp1: string;
+  whatsapp2: string;
+  whatsapp3: string;
+  email1: string;
+  email2: string;
+  email3: string;
   messageTemplate: string;
   enableQuickSend: boolean;
   holdDuration: number;
@@ -51,9 +54,12 @@ const SOS_SETTINGS_KEY = 'sos_settings';
 const DEFAULT_SOS_SETTINGS: SosSettings = {
   police: '100',
   ambulance: '102',
-  whatsapp: '',
-  whatsappList: '',
-  email: '',
+  whatsapp1: '',
+  whatsapp2: '',
+  whatsapp3: '',
+  email1: '',
+  email2: '',
+  email3: '',
   messageTemplate: 'Emergency! I need help. My location: {maps}',
   enableQuickSend: false,
   holdDuration: 1500,
@@ -663,6 +669,22 @@ export default function SafeRoute() {
       .filter(Boolean);
   }
 
+  function getWhatsappNumbers(): string[] {
+    return [sosSettings.whatsapp1, sosSettings.whatsapp2, sosSettings.whatsapp3]
+      .map(s => s?.trim().replace(/\D/g, ''))
+      .filter(Boolean);
+  }
+
+  function getEmails(): string[] {
+    return [sosSettings.email1, sosSettings.email2, sosSettings.email3]
+      .map(s => s?.trim())
+      .filter(Boolean);
+  }
+
+  function hasMinimumSosContacts(): boolean {
+    return getWhatsappNumbers().length > 0 || getEmails().length > 0;
+  }
+
   function getSosLocation(): Promise<GeolocationCoordinates | null> {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -765,8 +787,8 @@ export default function SafeRoute() {
       }
     }
 
-    const numbers = parseWhatsappList(sosSettings.whatsappList);
-    const phone = numbers.length ? numbers[0] : sosSettings.whatsapp;
+    const numbers = getWhatsappNumbers();
+    const phone = numbers.length ? numbers[0] : '';
 
     if (phone) {
       if (tempWin) {
@@ -789,7 +811,7 @@ export default function SafeRoute() {
       openDial(sosSettings.police);
       return;
     }
-    alert('No quick action configured (set WhatsApp or Police number in Settings).');
+    alert('No quick action configured (set Emergency WhatsApp or Police number in Settings).');
   }
 
   function actionCallPolice() {
@@ -812,13 +834,9 @@ export default function SafeRoute() {
       }
     }
 
-    const numbers = parseWhatsappList(sosSettings.whatsappList);
+    const numbers = getWhatsappNumbers();
     if (numbers.length === 0) {
-      if (sosSettings.whatsapp) {
-        openWhatsAppAppWithFallback(sosSettings.whatsapp, text);
-      } else {
-        alert('No WhatsApp contact configured. Add contact in Settings.');
-      }
+      alert('No Emergency WhatsApp contact configured. Add contact in Settings.');
       return;
     }
     if (numbers.length === 1) {
@@ -826,21 +844,22 @@ export default function SafeRoute() {
       return;
     }
 
-    if (!window.confirm(`Open WhatsApp chats for ${numbers.length} contacts in new tabs/windows? Your browser may block popups.`)) return;
+    if (!window.confirm(`Open WhatsApp chats for ${numbers.length} emergency contacts in new tabs/windows? Your browser may block popups.`)) return;
     for (let i = 0; i < numbers.length; i++) {
       openWhatsAppAppWithFallback(numbers[i], text);
       await new Promise((res) => setTimeout(res, 600));
     }
   }
 
-  function actionEmail() {
+  async function actionEmail() {
     const subject = 'Emergency Help Needed';
     const body = buildSosMessage(lastAddress);
-    const to = sosSettings.email || '';
-    if (to === '') {
-      alert('Email not configured. Add in Settings');
+    const emails = getEmails();
+    if (emails.length === 0) {
+      alert('No Emergency Email configured. Add in Settings');
       return;
     }
+    const to = emails.join(',');
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
     const win = window.open(gmailUrl, '_blank');
@@ -897,7 +916,8 @@ export default function SafeRoute() {
     setSosSettings(DEFAULT_SOS_SETTINGS);
   }
 
-  const whatsappCount = parseWhatsappList(sosSettings.whatsappList).length;
+  const whatsappCount = getWhatsappNumbers().length;
+  const emailCount = getEmails().length;
   // ============== END SOS FEATURE HELPER FUNCTIONS ==============
 
   const scrollToMap = () => {
@@ -2105,11 +2125,20 @@ export default function SafeRoute() {
               Emergency Options
             </DialogTitle>
             <DialogDescription className="text-sm xl:text-base">
-              Choose an action to notify help. Update the settings before using the SOS
+              {hasMinimumSosContacts() 
+                ? 'Choose an action to notify help.'
+                : '⚠️ Please add at least 1 Emergency WhatsApp or 1 Emergency Email in Settings before using SOS.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {!hasMinimumSosContacts() && (
+              <div className="bg-destructive/10 border border-destructive/30 p-4 rounded-lg">
+                <div className="text-sm text-destructive font-medium">Setup Required</div>
+                <div className="text-xs text-muted-foreground mt-1">Add at least 1 Emergency WhatsApp or 1 Emergency Email to use SOS features. You can add up to 3 of each for added safety.</div>
+              </div>
+            )}
+
             <div className="bg-muted p-4 rounded-lg space-y-2">
               <div className="font-medium text-sm xl:text-base">Call for emergency help</div>
               <div className="flex gap-2 mt-2">
@@ -2120,14 +2149,14 @@ export default function SafeRoute() {
 
             <div className="space-y-2">
               <div className="font-medium">Emergency WhatsApp</div>
-              <div className="text-sm text-muted-foreground">{whatsappCount > 0 ? `${whatsappCount} contact(s)` : sosSettings.whatsapp || '(not set)'}</div>
-              <Button onClick={async () => { await actionWhatsApp(); }} className="w-full">Send Emergency WhatsApp</Button>
+              <div className="text-sm text-muted-foreground">{whatsappCount > 0 ? `${whatsappCount} contact(s) configured` : '(not set)'}</div>
+              <Button onClick={async () => { await actionWhatsApp(); }} className="w-full" disabled={whatsappCount === 0}>Send Emergency WhatsApp</Button>
             </div>
 
             <div className="space-y-2">
-              <div className="font-medium">Email</div>
-              <div className="text-sm text-muted-foreground">{sosSettings.email || '(not set)'}</div>
-              <Button onClick={() => { actionEmail(); }} className="w-full">Send Email</Button>
+              <div className="font-medium">Emergency Email</div>
+              <div className="text-sm text-muted-foreground">{emailCount > 0 ? `${emailCount} email(s) configured` : '(not set)'}</div>
+              <Button onClick={async () => { await actionEmail(); }} className="w-full" disabled={emailCount === 0}>Send Emergency Email</Button>
             </div>
 
             <div className="space-y-2">
@@ -2147,11 +2176,11 @@ export default function SafeRoute() {
 
       {/* SOS Settings Dialog */}
       <Dialog open={sosSettingsOpen} onOpenChange={setSosSettingsOpen}>
-        <DialogContent className="bg-card">
+        <DialogContent className="bg-card max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg xl:text-xl">Emergency Settings</DialogTitle>
             <DialogDescription className="text-sm xl:text-base">
-              Configure phone numbers and quick-send preferences.
+              Add at least 1 Emergency WhatsApp or 1 Emergency Email. Up to 3 of each recommended for added safety.
             </DialogDescription>
           </DialogHeader>
 
@@ -2166,14 +2195,24 @@ export default function SafeRoute() {
               <Input value={sosSettings.ambulance} onChange={(e) => handleSosSettingsChange('ambulance', e.target.value)} />
             </div>
 
-            <div className="space-y-2">
-              <Label>Emergency WhatsApp number (international format, no +)</Label>
-              <Input value={sosSettings.whatsapp} onChange={(e) => handleSosSettingsChange('whatsapp', e.target.value)} />
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+              <div className="font-medium text-sm">Emergency WhatsApp Numbers (international format, no +)</div>
+              <div className="text-xs text-muted-foreground">At least 1 required. Add up to 3 for added safety.</div>
+              <div className="space-y-2">
+                <Input placeholder="WhatsApp 1 (required)" value={sosSettings.whatsapp1} onChange={(e) => handleSosSettingsChange('whatsapp1', e.target.value)} />
+                <Input placeholder="WhatsApp 2 (optional)" value={sosSettings.whatsapp2} onChange={(e) => handleSosSettingsChange('whatsapp2', e.target.value)} />
+                <Input placeholder="WhatsApp 3 (optional)" value={sosSettings.whatsapp3} onChange={(e) => handleSosSettingsChange('whatsapp3', e.target.value)} />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={sosSettings.email} onChange={(e) => handleSosSettingsChange('email', e.target.value)} />
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+              <div className="font-medium text-sm">Emergency Email Addresses</div>
+              <div className="text-xs text-muted-foreground">At least 1 required if no WhatsApp. Add up to 3 for added safety.</div>
+              <div className="space-y-2">
+                <Input placeholder="Email 1 (required)" type="email" value={sosSettings.email1} onChange={(e) => handleSosSettingsChange('email1', e.target.value)} />
+                <Input placeholder="Email 2 (optional)" type="email" value={sosSettings.email2} onChange={(e) => handleSosSettingsChange('email2', e.target.value)} />
+                <Input placeholder="Email 3 (optional)" type="email" value={sosSettings.email3} onChange={(e) => handleSosSettingsChange('email3', e.target.value)} />
+              </div>
             </div>
 
             <div className="space-y-2">
