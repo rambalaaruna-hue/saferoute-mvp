@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { countryCodes, getCountryFlag } from '../data/countryCodes';
 import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart } from 'lucide-react';
 import { StarRating, SafetyScoreSlider } from '@/components/StarRating';
 import { Button } from '@/components/ui/button';
@@ -2373,7 +2374,6 @@ export default function SafeRoute() {
 
           <div className="space-y-4 py-4">
             {/* Helper for rendering phone inputs with country code */}
-            {/* Helper for rendering phone inputs with country code */}
             {(() => {
               const renderPhoneInput = (label: string, codeField: keyof SosSettings, numberField: keyof SosSettings, placeholder: string) => {
                 const code = sosSettings[codeField] as string;
@@ -2383,24 +2383,37 @@ export default function SafeRoute() {
                   <div className="space-y-1">
                     {label && <Label>{label}</Label>}
                     <div className="flex gap-2">
-                      {/* Country Code */}
-                      <div className="w-20 flex-shrink-0">
-                        <Input
+                      {/* Country Code Dropdown */}
+                      <div className="w-32 flex-shrink-0">
+                        <Select
                           value={code}
-                          onChange={(e) => {
-                            // Simple text input, no regex forcing
-                            handleSosSettingsChange(codeField, e.target.value);
-                          }}
-                          placeholder="Code"
-                          className="text-center"
-                        />
+                          onValueChange={(value) => handleSosSettingsChange(codeField, value)}
+                        >
+                          <SelectTrigger className="w-full text-center px-2">
+                            <SelectValue placeholder="Code">
+                              {code ? `${getCountryFlag(code)} +${code}` : 'Code'}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {countryCodes.map((c) => (
+                              <SelectItem key={c.iso} value={c.code}>
+                                <span className="flex items-center gap-2">
+                                  <span className="text-lg">{c.flag}</span>
+                                  <span className="text-muted-foreground text-xs">{c.name}</span>
+                                  <span className="font-mono ml-auto">+{c.code}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      {/* Phone Number */}
+
+                      {/* Phone Number - Plain typing box */}
                       <div className="flex-1">
                         <Input
                           value={number}
                           onChange={(e) => {
-                            // Simple text input, no regex forcing
+                            // Strictly plain text to avoid loop bugs
                             handleSosSettingsChange(numberField, e.target.value);
                           }}
                           placeholder={placeholder}
@@ -2418,7 +2431,7 @@ export default function SafeRoute() {
 
                   <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
                     <div className="font-medium text-sm">Emergency WhatsApp Numbers</div>
-                    <div className="text-xs text-muted-foreground">Country code + Number required. We default code to 91 (India).</div>
+                    <div className="text-xs text-muted-foreground">Select country code & type number. Supports international numbers.</div>
 
                     {renderPhoneInput('', 'whatsapp1Code', 'whatsapp1Number', 'WhatsApp 1 (required)')}
                     {renderPhoneInput('', 'whatsapp2Code', 'whatsapp2Number', 'WhatsApp 2 (optional)')}
