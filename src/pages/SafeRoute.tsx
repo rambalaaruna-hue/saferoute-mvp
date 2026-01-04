@@ -2388,9 +2388,8 @@ export default function SafeRoute() {
                         <Input
                           value={code}
                           onChange={(e) => {
-                            // Allow numbers only for code
-                            const newCode = e.target.value.replace(/\D/g, '');
-                            handleSosSettingsChange(codeField, newCode);
+                            // Simple text input, no regex forcing
+                            handleSosSettingsChange(codeField, e.target.value);
                           }}
                           placeholder="Code"
                           className="text-center"
@@ -2401,9 +2400,8 @@ export default function SafeRoute() {
                         <Input
                           value={number}
                           onChange={(e) => {
-                            // Allow numbers only
-                            const newNumber = e.target.value.replace(/\D/g, '');
-                            handleSosSettingsChange(numberField, newNumber);
+                            // Simple text input, no regex forcing
+                            handleSosSettingsChange(numberField, e.target.value);
                           }}
                           placeholder={placeholder}
                         />
