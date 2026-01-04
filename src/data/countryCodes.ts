@@ -31,7 +31,6 @@ export const countryCodes: CountryCode[] = [
     { name: 'Pakistan', code: '92', flag: '🇵🇰', iso: 'PK' },
     { name: 'Sri Lanka', code: '94', flag: '🇱🇰', iso: 'LK' },
     { name: 'Nepal', code: '977', flag: '🇳🇵', iso: 'NP' },
-    { name: 'Other', code: '', flag: '🌍', iso: 'XX' },
 ];
 
 export const getCountryFlag = (code: string) => {
