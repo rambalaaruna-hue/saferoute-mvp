@@ -34,11 +34,16 @@ import { MockMap } from '@/components/MockMap';
 
 // ============== SOS FEATURE TYPES AND CONSTANTS ==============
 type SosSettings = {
-  police: string;
-  ambulance: string;
-  whatsapp1: string;
-  whatsapp2: string;
-  whatsapp3: string;
+  policeCode: string;
+  policeNumber: string;
+  ambulanceCode: string;
+  ambulanceNumber: string;
+  whatsapp1Code: string;
+  whatsapp1Number: string;
+  whatsapp2Code: string;
+  whatsapp2Number: string;
+  whatsapp3Code: string;
+  whatsapp3Number: string;
   email1: string;
   email2: string;
   email3: string;
@@ -52,11 +57,16 @@ type SosSettings = {
 const SOS_SETTINGS_KEY = 'sos_settings';
 
 const DEFAULT_SOS_SETTINGS: SosSettings = {
-  police: '100',
-  ambulance: '102',
-  whatsapp1: '',
-  whatsapp2: '',
-  whatsapp3: '',
+  policeCode: '91',
+  policeNumber: '100',
+  ambulanceCode: '91',
+  ambulanceNumber: '102',
+  whatsapp1Code: '91',
+  whatsapp1Number: '',
+  whatsapp2Code: '91',
+  whatsapp2Number: '',
+  whatsapp3Code: '91',
+  whatsapp3Number: '',
   email1: '',
   email2: '',
   email3: '',
@@ -109,7 +119,51 @@ export default function SafeRoute() {
   // SOS Feature State
   const [sosSettings, setSosSettings] = useState<SosSettings>(() => {
     const savedSettings = localStorage.getItem(SOS_SETTINGS_KEY);
-    return savedSettings ? JSON.parse(savedSettings) : DEFAULT_SOS_SETTINGS;
+    if (!savedSettings) return DEFAULT_SOS_SETTINGS;
+
+    try {
+      const parsed = JSON.parse(savedSettings);
+
+      // Migration check: if old keys exist but new keys don't, migrate them
+      // Simple migration: If 'police' is string, split it or default
+      if ('police' in parsed && typeof parsed.police === 'string' && !parsed.policeCode) {
+        // Migration helper
+        const migrate = (oldVal: string | undefined) => {
+          if (!oldVal) return { code: '91', number: '' };
+          // If starts with 91 and length > 4, assume it was a formatted number
+          if (oldVal.startsWith('91') && oldVal.length > 4) {
+            return { code: '91', number: oldVal.slice(2) };
+          }
+          return { code: '91', number: oldVal };
+        };
+
+        const police = migrate(parsed.police);
+        const ambulance = migrate(parsed.ambulance);
+        const wa1 = migrate(parsed.whatsapp1);
+        const wa2 = migrate(parsed.whatsapp2);
+        const wa3 = migrate(parsed.whatsapp3);
+
+        return {
+          ...DEFAULT_SOS_SETTINGS, // Ensure all new fields exist
+          ...parsed, // Keep other existing settings like messageTemplate
+          policeCode: police.code,
+          policeNumber: police.number,
+          ambulanceCode: ambulance.code,
+          ambulanceNumber: ambulance.number,
+          whatsapp1Code: wa1.code,
+          whatsapp1Number: wa1.number,
+          whatsapp2Code: wa2.code,
+          whatsapp2Number: wa2.number,
+          whatsapp3Code: wa3.code,
+          whatsapp3Number: wa3.number,
+        };
+      }
+
+      // If already migrated or fresh, just return parsed (merged with defaults for safety)
+      return { ...DEFAULT_SOS_SETTINGS, ...parsed };
+    } catch (e) {
+      return DEFAULT_SOS_SETTINGS;
+    }
   });
   const [lastCoords, setLastCoords] = useState<GeolocationCoordinates | null>(null);
   const [lastAddress, setLastAddress] = useState<string | null>(null);
@@ -698,9 +752,11 @@ export default function SafeRoute() {
   }
 
   function getWhatsappNumbers(): string[] {
-    return [sosSettings.whatsapp1, sosSettings.whatsapp2, sosSettings.whatsapp3]
-      .map(s => s?.trim().replace(/\D/g, ''))
-      .filter(Boolean);
+    const w1 = sosSettings.whatsapp1Number ? (sosSettings.whatsapp1Code + sosSettings.whatsapp1Number).replace(/\D/g, '') : '';
+    const w2 = sosSettings.whatsapp2Number ? (sosSettings.whatsapp2Code + sosSettings.whatsapp2Number).replace(/\D/g, '') : '';
+    const w3 = sosSettings.whatsapp3Number ? (sosSettings.whatsapp3Code + sosSettings.whatsapp3Number).replace(/\D/g, '') : '';
+
+    return [w1, w2, w3].filter(Boolean);
   }
 
   function getEmails(): string[] {
@@ -841,19 +897,19 @@ export default function SafeRoute() {
     }
 
     if (tempWin) tempWin.close();
-    if (sosSettings.police) {
-      openDial(sosSettings.police);
+    if (sosSettings.policeNumber) {
+      openDial(sosSettings.policeCode + sosSettings.policeNumber);
       return;
     }
     alert('No quick action configured (set Emergency WhatsApp or Police number in Settings).');
   }
 
   function actionCallPolice() {
-    openDial(sosSettings.police);
+    openDial(sosSettings.policeCode + sosSettings.policeNumber);
   }
 
   function actionCallAmbulance() {
-    openDial(sosSettings.ambulance);
+    openDial(sosSettings.ambulanceCode + sosSettings.ambulanceNumber);
   }
 
   async function actionWhatsApp(specificNumber?: string) {
@@ -2317,20 +2373,11 @@ export default function SafeRoute() {
 
           <div className="space-y-4 py-4">
             {/* Helper for rendering phone inputs with country code */}
+            {/* Helper for rendering phone inputs with country code */}
             {(() => {
-              const renderPhoneInput = (label: string, field: keyof SosSettings, placeholder: string) => {
-                const fullValue = sosSettings[field] as string || '';
-                let code = '91';
-                let number = fullValue;
-
-                // Simple heuristic to split existing numbers
-                if (fullValue.startsWith('91') && fullValue.length > 5) {
-                  code = '91';
-                  number = fullValue.slice(2);
-                } else if (fullValue.length > 0 && !fullValue.startsWith('91')) {
-                  // If it doesn't start with 91, keep it all in number for safety, defaulting code to 91
-                  number = fullValue;
-                }
+              const renderPhoneInput = (label: string, codeField: keyof SosSettings, numberField: keyof SosSettings, placeholder: string) => {
+                const code = sosSettings[codeField] as string;
+                const number = sosSettings[numberField] as string;
 
                 return (
                   <div className="space-y-1">
@@ -2341,8 +2388,9 @@ export default function SafeRoute() {
                         <Input
                           value={code}
                           onChange={(e) => {
+                            // Allow numbers only for code
                             const newCode = e.target.value.replace(/\D/g, '');
-                            handleSosSettingsChange(field, newCode + number);
+                            handleSosSettingsChange(codeField, newCode);
                           }}
                           placeholder="Code"
                           className="text-center"
@@ -2353,8 +2401,9 @@ export default function SafeRoute() {
                         <Input
                           value={number}
                           onChange={(e) => {
+                            // Allow numbers only
                             const newNumber = e.target.value.replace(/\D/g, '');
-                            handleSosSettingsChange(field, code + newNumber); // Always unite with current/default code
+                            handleSosSettingsChange(numberField, newNumber);
                           }}
                           placeholder={placeholder}
                         />
@@ -2366,16 +2415,16 @@ export default function SafeRoute() {
 
               return (
                 <>
-                  {renderPhoneInput('Police phone number', 'police', 'e.g. 100')}
-                  {renderPhoneInput('Ambulance phone number', 'ambulance', 'e.g. 102')}
+                  {renderPhoneInput('Police phone number', 'policeCode', 'policeNumber', 'e.g. 100')}
+                  {renderPhoneInput('Ambulance phone number', 'ambulanceCode', 'ambulanceNumber', 'e.g. 102')}
 
                   <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
                     <div className="font-medium text-sm">Emergency WhatsApp Numbers</div>
-                    <div className="text-xs text-muted-foreground">Country code + Number required. We auto-add the code for you.</div>
+                    <div className="text-xs text-muted-foreground">Country code + Number required. We default code to 91 (India).</div>
 
-                    {renderPhoneInput('', 'whatsapp1', 'WhatsApp 1 (required)')}
-                    {renderPhoneInput('', 'whatsapp2', 'WhatsApp 2 (optional)')}
-                    {renderPhoneInput('', 'whatsapp3', 'WhatsApp 3 (optional)')}
+                    {renderPhoneInput('', 'whatsapp1Code', 'whatsapp1Number', 'WhatsApp 1 (required)')}
+                    {renderPhoneInput('', 'whatsapp2Code', 'whatsapp2Number', 'WhatsApp 2 (optional)')}
+                    {renderPhoneInput('', 'whatsapp3Code', 'whatsapp3Number', 'WhatsApp 3 (optional)')}
                   </div>
                 </>
               );
