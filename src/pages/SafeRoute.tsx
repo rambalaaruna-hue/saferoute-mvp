@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { countryCodes, getCountryFlag } from '../data/countryCodes';
 import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart } from 'lucide-react';
+import { LocationAutocomplete } from '@/components/LocationAutocomplete';
 import { StarRating, SafetyScoreSlider } from '@/components/StarRating';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1173,12 +1174,12 @@ export default function SafeRoute() {
                   Start Location
                 </Label>
                 <div className="flex gap-2">
-                  <Input
-                    id="start"
+                  <LocationAutocomplete
                     value={startLocation}
-                    onChange={(e) => setStartLocation(e.target.value)}
+                    onChange={setStartLocation}
+                    onSelect={(data) => setStartLocation(data.address)}
                     placeholder="Your current location"
-                    className="bg-input border-border text-sm xl:text-base flex-1"
+                    className="flex-1"
                   />
                   <Button
                     type="button"
@@ -1202,12 +1203,11 @@ export default function SafeRoute() {
                   <MapPin className="w-4 h-4" />
                   Destination
                 </Label>
-                <Input
-                  id="destination"
+                <LocationAutocomplete
                   value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
+                  onChange={setDestination}
+                  onSelect={(data) => setDestination(data.address)}
                   placeholder="Enter destination"
-                  className="bg-input border-border text-sm xl:text-base"
                 />
               </div>
 
