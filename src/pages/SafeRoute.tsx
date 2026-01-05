@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { countryCodes, getCountryFlag } from '../data/countryCodes';
-import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart } from 'lucide-react';
+import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { LocationAutocomplete } from '@/components/LocationAutocomplete';
 import { StarRating, SafetyScoreSlider } from '@/components/StarRating';
 import { Button } from '@/components/ui/button';
@@ -171,6 +172,7 @@ export default function SafeRoute() {
   const [lastAddress, setLastAddress] = useState<string | null>(null);
   const [sosMenuOpen, setSosMenuOpen] = useState(false);
   const [sosSettingsOpen, setSosSettingsOpen] = useState(false);
+  const [isScoreBreakdownOpen, setIsScoreBreakdownOpen] = useState(false);
   const holdTimerRef = useRef<number | null>(null);
 
   const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -1351,219 +1353,237 @@ export default function SafeRoute() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {/* Score Calculation Breakdown */}
-                {currentAnalysis.riskFactors && (() => {
-                  const rf = currentAnalysis.riskFactors;
+              <Collapsible
+                open={isScoreBreakdownOpen}
+                onOpenChange={setIsScoreBreakdownOpen}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Click to view detailed factor analysis
+                  </p>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-9 p-0">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isScoreBreakdownOpen ? "rotate-180" : "")} />
+                      <span className="sr-only">Toggle breakdown</span>
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
 
-                  // Get selected hour for display
-                  const selectedHour = parseInt(travelTime.split(':')[0], 10);
-                  const timeLabel = selectedHour >= 22 || selectedHour <= 5
-                    ? `Late night (${travelTime})`
-                    : selectedHour >= 19 || selectedHour <= 7
-                      ? `Evening/morning (${travelTime})`
-                      : `Daytime (${travelTime})`;
+                <CollapsibleContent className="space-y-4">
+                  {/* Score Calculation Breakdown */}
+                  {currentAnalysis.riskFactors && (() => {
+                    const rf = currentAnalysis.riskFactors;
 
-                  // Calculate actual points for each factor (points = (1 - risk) * weight * 100)
-                  const factors = [
-                    {
-                      name: 'Crime Risk',
-                      emoji: '🚨',
-                      weight: 25,
-                      risk: rf.crimeRisk,
-                      points: Math.round((1 - rf.crimeRisk) * 25),
-                      description: rf.crimeRisk <= 0.3 ? 'Low crime area' : rf.crimeRisk <= 0.6 ? 'Moderate crime area' : 'Higher crime area'
-                    },
-                    {
-                      name: 'Lighting',
-                      emoji: '💡',
-                      weight: 15,
-                      risk: rf.lightingRisk,
-                      points: Math.round((1 - rf.lightingRisk) * 15),
-                      description: rf.lightingRisk <= 0.3 ? 'Well-lit streets' : rf.lightingRisk <= 0.6 ? 'Partially lit' : 'Limited lighting'
-                    },
-                    {
-                      name: 'Time of Day',
-                      emoji: '🌙',
-                      weight: 15,
-                      risk: rf.timeRisk,
-                      points: Math.round((1 - rf.timeRisk) * 15),
-                      description: timeLabel
-                    },
-                    {
-                      name: 'Road Type',
-                      emoji: '🛣️',
-                      weight: 10,
-                      risk: rf.roadTypeRisk,
-                      points: Math.round((1 - rf.roadTypeRisk) * 10),
-                      description: rf.roadTypeRisk <= 0.4 ? 'Main roads/highways' : rf.roadTypeRisk <= 0.6 ? 'Residential streets' : 'Narrow lanes/alleys'
-                    },
-                    {
-                      name: 'Distance',
-                      emoji: '📏',
-                      weight: 10,
-                      risk: rf.distanceRisk,
-                      points: Math.round((1 - rf.distanceRisk) * 10),
-                      description: rf.distanceRisk <= 0.3 ? 'Short distance (<3km)' : rf.distanceRisk <= 0.6 ? 'Moderate distance' : 'Long distance (>6km)'
-                    },
-                    {
-                      name: 'Duration',
-                      emoji: '⏱️',
-                      weight: 10,
-                      risk: rf.durationRisk,
-                      points: Math.round((1 - rf.durationRisk) * 10),
-                      description: rf.durationRisk <= 0.3 ? 'Quick trip (<10min)' : rf.durationRisk <= 0.6 ? 'Moderate duration' : 'Long duration (>20min)'
-                    },
-                    {
-                      name: 'Weather',
-                      emoji: '🌦️',
-                      weight: 10,
-                      risk: rf.weatherRisk,
-                      points: Math.round((1 - rf.weatherRisk) * 10),
-                      description: rf.weatherRisk <= 0.3 ? 'Clear weather' : rf.weatherRisk <= 0.6 ? 'Cloudy/light rain' : 'Poor visibility'
-                    },
-                    {
-                      name: 'Route Complexity',
-                      emoji: '🔄',
-                      weight: 5,
-                      risk: rf.turnRisk,
-                      points: Math.round((1 - rf.turnRisk) * 5),
-                      description: rf.turnRisk <= 0.3 ? 'Straightforward route' : rf.turnRisk <= 0.6 ? 'Some turns' : 'Complex route'
-                    },
-                  ];
+                    // Get selected hour for display
+                    const selectedHour = parseInt(travelTime.split(':')[0], 10);
+                    const timeLabel = selectedHour >= 22 || selectedHour <= 5
+                      ? `Late night (${travelTime})`
+                      : selectedHour >= 19 || selectedHour <= 7
+                        ? `Evening/morning (${travelTime})`
+                        : `Daytime (${travelTime})`;
 
-                  const totalPoints = factors.reduce((sum, f) => sum + f.points, 0);
+                    // Calculate actual points for each factor (points = (1 - risk) * weight * 100)
+                    const factors = [
+                      {
+                        name: 'Crime Risk',
+                        emoji: '🚨',
+                        weight: 25,
+                        risk: rf.crimeRisk,
+                        points: Math.round((1 - rf.crimeRisk) * 25),
+                        description: rf.crimeRisk <= 0.3 ? 'Low crime area' : rf.crimeRisk <= 0.6 ? 'Moderate crime area' : 'Higher crime area'
+                      },
+                      {
+                        name: 'Lighting',
+                        emoji: '💡',
+                        weight: 15,
+                        risk: rf.lightingRisk,
+                        points: Math.round((1 - rf.lightingRisk) * 15),
+                        description: rf.lightingRisk <= 0.3 ? 'Well-lit streets' : rf.lightingRisk <= 0.6 ? 'Partially lit' : 'Limited lighting'
+                      },
+                      {
+                        name: 'Time of Day',
+                        emoji: '🌙',
+                        weight: 15,
+                        risk: rf.timeRisk,
+                        points: Math.round((1 - rf.timeRisk) * 15),
+                        description: timeLabel
+                      },
+                      {
+                        name: 'Road Type',
+                        emoji: '🛣️',
+                        weight: 10,
+                        risk: rf.roadTypeRisk,
+                        points: Math.round((1 - rf.roadTypeRisk) * 10),
+                        description: rf.roadTypeRisk <= 0.4 ? 'Main roads/highways' : rf.roadTypeRisk <= 0.6 ? 'Residential streets' : 'Narrow lanes/alleys'
+                      },
+                      {
+                        name: 'Distance',
+                        emoji: '📏',
+                        weight: 10,
+                        risk: rf.distanceRisk,
+                        points: Math.round((1 - rf.distanceRisk) * 10),
+                        description: rf.distanceRisk <= 0.3 ? 'Short distance (<3km)' : rf.distanceRisk <= 0.6 ? 'Moderate distance' : 'Long distance (>6km)'
+                      },
+                      {
+                        name: 'Duration',
+                        emoji: '⏱️',
+                        weight: 10,
+                        risk: rf.durationRisk,
+                        points: Math.round((1 - rf.durationRisk) * 10),
+                        description: rf.durationRisk <= 0.3 ? 'Quick trip (<10min)' : rf.durationRisk <= 0.6 ? 'Moderate duration' : 'Long duration (>20min)'
+                      },
+                      {
+                        name: 'Weather',
+                        emoji: '🌦️',
+                        weight: 10,
+                        risk: rf.weatherRisk,
+                        points: Math.round((1 - rf.weatherRisk) * 10),
+                        description: rf.weatherRisk <= 0.3 ? 'Clear weather' : rf.weatherRisk <= 0.6 ? 'Cloudy/light rain' : 'Poor visibility'
+                      },
+                      {
+                        name: 'Route Complexity',
+                        emoji: '🔄',
+                        weight: 5,
+                        risk: rf.turnRisk,
+                        points: Math.round((1 - rf.turnRisk) * 5),
+                        description: rf.turnRisk <= 0.3 ? 'Straightforward route' : rf.turnRisk <= 0.6 ? 'Some turns' : 'Complex route'
+                      },
+                    ];
 
-                  return (
-                    <div className="space-y-4">
-                      {/* Total Score Summary */}
-                      <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-                        <h4 className="font-semibold text-base xl:text-lg mb-2 flex items-center gap-2">
-                          <Shield className="w-5 h-5 text-primary" />
-                          Total Score Calculation
-                        </h4>
-                        <div className="flex flex-wrap gap-2 text-sm">
-                          {factors.map((f, i) => (
-                            <span key={f.name} className="inline-flex items-center">
-                              <span className={`font-bold ${f.points >= f.weight * 0.7 ? 'text-green-400' : f.points >= f.weight * 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                {f.points}
-                              </span>
-                              {i < factors.length - 1 && <span className="text-muted-foreground mx-1">+</span>}
-                            </span>
-                          ))}
-                          <span className="text-muted-foreground mx-1">=</span>
-                          <span className="font-bold text-primary text-base">{totalPoints} points</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Raw score: {totalPoints}/100 → Relative score: {currentAnalysis.safetyScore}/100 (adjusted based on route comparison)
-                        </p>
-                      </div>
+                    const totalPoints = factors.reduce((sum, f) => sum + f.points, 0);
 
-                      {/* Individual Factor Breakdown */}
-                      <h4 className="font-medium text-sm xl:text-base flex items-center gap-2 pt-2">
-                        <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                        Factor-by-Factor Breakdown
-                      </h4>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {factors.map((factor) => {
-                          const percentage = (factor.points / factor.weight) * 100;
-                          const colorClass = percentage >= 70 ? 'text-green-400' : percentage >= 40 ? 'text-yellow-400' : 'text-red-400';
-                          const bgColorClass = percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500';
-
-                          return (
-                            <div key={factor.name} className="bg-secondary/50 rounded-lg p-3">
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs xl:text-sm font-medium">
-                                  {factor.emoji} {factor.name}
+                    return (
+                      <div className="space-y-4 pt-2">
+                        {/* Total Score Summary */}
+                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                          <h4 className="font-semibold text-base xl:text-lg mb-2 flex items-center gap-2">
+                            <Shield className="w-5 h-5 text-primary" />
+                            Total Score Calculation
+                          </h4>
+                          <div className="flex flex-wrap gap-2 text-sm">
+                            {factors.map((f, i) => (
+                              <span key={f.name} className="inline-flex items-center">
+                                <span className={`font-bold ${f.points >= f.weight * 0.7 ? 'text-green-400' : f.points >= f.weight * 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                  {f.points}
                                 </span>
-                                <div className="text-right">
-                                  <span className={`text-sm xl:text-base font-bold ${colorClass}`}>
-                                    {factor.points}/{factor.weight}
+                                {i < factors.length - 1 && <span className="text-muted-foreground mx-1">+</span>}
+                              </span>
+                            ))}
+                            <span className="text-muted-foreground mx-1">=</span>
+                            <span className="font-bold text-primary text-base">{totalPoints} points</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Raw score: {totalPoints}/100 → Relative score: {currentAnalysis.safetyScore}/100 (adjusted based on route comparison)
+                          </p>
+                        </div>
+
+                        {/* Individual Factor Breakdown */}
+                        <h4 className="font-medium text-sm xl:text-base flex items-center gap-2 pt-2">
+                          <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                          Factor-by-Factor Breakdown
+                        </h4>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {factors.map((factor) => {
+                            const percentage = (factor.points / factor.weight) * 100;
+                            const colorClass = percentage >= 70 ? 'text-green-400' : percentage >= 40 ? 'text-yellow-400' : 'text-red-400';
+                            const bgColorClass = percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+
+                            return (
+                              <div key={factor.name} className="bg-secondary/50 rounded-lg p-3">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-xs xl:text-sm font-medium">
+                                    {factor.emoji} {factor.name}
                                   </span>
-                                  <span className="text-xs text-muted-foreground ml-1">pts</span>
+                                  <div className="text-right">
+                                    <span className={`text-sm xl:text-base font-bold ${colorClass}`}>
+                                      {factor.points}/{factor.weight}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground ml-1">pts</span>
+                                  </div>
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
+                                  <div
+                                    className={`h-2.5 rounded-full ${bgColorClass} transition-all`}
+                                    style={{ width: `${percentage}%` }}
+                                  />
+                                </div>
+
+                                {/* Description and weight info */}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-muted-foreground">
+                                    {factor.description}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Weight: {factor.weight}%
+                                  </span>
                                 </div>
                               </div>
-
-                              {/* Progress bar */}
-                              <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
-                                <div
-                                  className={`h-2.5 rounded-full ${bgColorClass} transition-all`}
-                                  style={{ width: `${percentage}%` }}
-                                />
-                              </div>
-
-                              {/* Description and weight info */}
-                              <div className="flex justify-between items-center">
-                                <span className="text-xs text-muted-foreground">
-                                  {factor.description}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  Weight: {factor.weight}%
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Color Legend */}
-                      <div className="flex flex-wrap items-center gap-4 pt-2 text-xs">
-                        <span className="text-muted-foreground font-medium">Score Guide:</span>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          <span className="text-muted-foreground">70%+ of max points (Good)</span>
+                            );
+                          })}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                          <span className="text-muted-foreground">40-69% (Moderate)</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                          <span className="text-muted-foreground">&lt;40% (Needs attention)</span>
+
+                        {/* Color Legend */}
+                        <div className="flex flex-wrap items-center gap-4 pt-2 text-xs">
+                          <span className="text-muted-foreground font-medium">Score Guide:</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                            <span className="text-muted-foreground">70%+ of max points (Good)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <span className="text-muted-foreground">40-69% (Moderate)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                            <span className="text-muted-foreground">&lt;40% (Needs attention)</span>
+                          </div>
                         </div>
                       </div>
+                    );
+                  })()}
+
+                  {/* Key Highlights */}
+                  {currentAnalysis.highlights && currentAnalysis.highlights.length > 0 && (
+                    <div className="space-y-2 pt-4 border-t border-border">
+                      <h4 className="font-medium text-sm xl:text-base">Key Highlights:</h4>
+                      <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                        {currentAnalysis.highlights.map((highlight, index) => (
+                          <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
+                            <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                            {highlight}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  );
-                })()}
+                  )}
 
-                {/* Key Highlights */}
-                {currentAnalysis.highlights && currentAnalysis.highlights.length > 0 && (
-                  <div className="space-y-2 pt-4 border-t border-border">
-                    <h4 className="font-medium text-sm xl:text-base">Key Highlights:</h4>
-                    <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                      {currentAnalysis.highlights.map((highlight, index) => (
-                        <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
-                          <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                          {highlight}
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Recommendations */}
+                  {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
+                    <div className="space-y-2 pt-4 border-t border-border">
+                      <h4 className="font-medium text-sm xl:text-base">Safety Recommendations:</h4>
+                      <ul className="space-y-1">
+                        {currentAnalysis.recommendations.map((rec, index) => (
+                          <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
+                            <div className="w-1.5 h-1.5 bg-accent rounded-full" />
+                            {rec}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span className="text-xs xl:text-sm text-muted-foreground">
+                      Transparency first: Every point is calculated and shown • Final score is relative to available alternatives
+                    </span>
                   </div>
-                )}
-
-                {/* Recommendations */}
-                {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
-                  <div className="space-y-2 pt-4 border-t border-border">
-                    <h4 className="font-medium text-sm xl:text-base">Safety Recommendations:</h4>
-                    <ul className="space-y-1">
-                      {currentAnalysis.recommendations.map((rec, index) => (
-                        <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
-                          <div className="w-1.5 h-1.5 bg-accent rounded-full" />
-                          {rec}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-xs xl:text-sm text-muted-foreground">
-                    Transparency first: Every point is calculated and shown • Final score is relative to available alternatives
-                  </span>
-                </div>
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
             </CardContent>
           </Card>
         </section>
