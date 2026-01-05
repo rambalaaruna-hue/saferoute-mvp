@@ -75,7 +75,7 @@ const DEFAULT_SOS_SETTINGS: SosSettings = {
   email2: '',
   email3: '',
   messageTemplate: 'Emergency! I need help. My location: {maps}',
-  enableQuickSend: false,
+  enableQuickSend: true,
   holdDuration: 1500,
   useNominatim: false,
   nominatimEmail: ''
@@ -175,6 +175,7 @@ export default function SafeRoute() {
   const [sosSettingsOpen, setSosSettingsOpen] = useState(false);
   const [isScoreBreakdownOpen, setIsScoreBreakdownOpen] = useState(false);
   const holdTimerRef = useRef<number | null>(null);
+  const isLongPressTriggered = useRef(false);
 
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -1064,9 +1065,11 @@ export default function SafeRoute() {
 
   // hold-to-quick-send helpers
   const startHold = () => {
+    isLongPressTriggered.current = false;
     if (!sosSettings.enableQuickSend) return;
     if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
     holdTimerRef.current = window.setTimeout(() => {
+      isLongPressTriggered.current = true;
       handleQuickSend();
     }, sosSettings.holdDuration || DEFAULT_SOS_SETTINGS.holdDuration);
   };
@@ -1126,12 +1129,20 @@ export default function SafeRoute() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => { handleSosClick(); }}
+              onClick={(e) => {
+                // Prevent click if long press was triggered
+                if (isLongPressTriggered.current) {
+                  isLongPressTriggered.current = false;
+                  return;
+                }
+                handleSosClick();
+              }}
               onPointerDown={startHold}
               onPointerUp={cancelHold}
               onPointerLeave={cancelHold}
+              onContextMenu={(e) => e.preventDefault()}
               title="SOS - Hold for quick send"
-              className="text-xs xl:text-sm"
+              className="text-xs xl:text-sm select-none touch-none"
             >
               SOS
             </Button>
