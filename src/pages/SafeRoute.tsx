@@ -175,7 +175,8 @@ export default function SafeRoute() {
   const [sosSettingsOpen, setSosSettingsOpen] = useState(false);
   const [isScoreBreakdownOpen, setIsScoreBreakdownOpen] = useState(false);
   const holdTimerRef = useRef<number | null>(null);
-  const isLongPressTriggered = useRef(false);
+  const isLongPressReady = useRef(false);
+  const pressStartTime = useRef<number>(0);
 
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -1065,12 +1066,23 @@ export default function SafeRoute() {
 
   // hold-to-quick-send helpers
   const startHold = () => {
-    isLongPressTriggered.current = false;
+    isLongPressReady.current = false;
+    pressStartTime.current = Date.now();
+
     if (!sosSettings.enableQuickSend) return;
     if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+
     holdTimerRef.current = window.setTimeout(() => {
-      isLongPressTriggered.current = true;
-      handleQuickSend();
+      isLongPressReady.current = true;
+      toast({
+        title: "Ready to Send",
+        description: "Release button now to trigger Quick SOS",
+        duration: 2000,
+      });
+      // Optionally vibrate if supported
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(200);
+      }
     }, sosSettings.holdDuration || DEFAULT_SOS_SETTINGS.holdDuration);
   };
 
@@ -1130,11 +1142,21 @@ export default function SafeRoute() {
               variant="destructive"
               size="sm"
               onClick={(e) => {
-                // Prevent click if long press was triggered
-                if (isLongPressTriggered.current) {
-                  isLongPressTriggered.current = false;
+                // If long press was ready (held long enough), trigger quick send
+                if (isLongPressReady.current) {
+                  handleQuickSend();
+                  isLongPressReady.current = false; // reset
                   return;
                 }
+
+                // Fallback: Check time difference just in case timer didn't fire but enough time passed
+                const duration = Date.now() - pressStartTime.current;
+                if (sosSettings.enableQuickSend && duration >= (sosSettings.holdDuration || 1500)) {
+                  handleQuickSend();
+                  return;
+                }
+
+                // Otherwise normal click
                 handleSosClick();
               }}
               onPointerDown={startHold}
