@@ -164,7 +164,8 @@ export default function SafeRoute() {
       }
 
       // If already migrated or fresh, just return parsed (merged with defaults for safety)
-      return { ...DEFAULT_SOS_SETTINGS, ...parsed };
+      // FIX: Force enableQuickSend to be true even if saved as false (user request)
+      return { ...DEFAULT_SOS_SETTINGS, ...parsed, enableQuickSend: true };
     } catch (e) {
       return DEFAULT_SOS_SETTINGS;
     }
@@ -177,6 +178,7 @@ export default function SafeRoute() {
   const holdTimerRef = useRef<number | null>(null);
   const isLongPressReady = useRef(false);
   const pressStartTime = useRef<number>(0);
+  const [isHolding, setIsHolding] = useState(false); // Visual feedback state
 
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -1064,29 +1066,35 @@ export default function SafeRoute() {
     window.open(mapsLink(lastCoords.latitude, lastCoords.longitude), '_blank');
   }
 
+
+
   // hold-to-quick-send helpers
   const startHold = () => {
     isLongPressReady.current = false;
     pressStartTime.current = Date.now();
+    setIsHolding(true); // Start visual feedback
 
     if (!sosSettings.enableQuickSend) return;
     if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
 
     holdTimerRef.current = window.setTimeout(() => {
       isLongPressReady.current = true;
+      setIsHolding(false); // Stop holding visual, show ready state if needed (or just toast)
       toast({
-        title: "Ready to Send",
-        description: "Release button now to trigger Quick SOS",
-        duration: 2000,
+        title: "Ready to Send!",
+        description: "🚨 Release NOW to trigger SOS",
+        duration: 3000,
+        variant: "destructive"
       });
       // Optionally vibrate if supported
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(200);
+        navigator.vibrate([100, 50, 100]); // Distinct vibration pattern
       }
     }, sosSettings.holdDuration || DEFAULT_SOS_SETTINGS.holdDuration);
   };
 
   const cancelHold = () => {
+    setIsHolding(false); // Reset visual feedback
     if (holdTimerRef.current) {
       window.clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
@@ -1139,9 +1147,11 @@ export default function SafeRoute() {
               <span className="hidden sm:inline">Our Vision</span>
             </Button>
             <Button
-              variant="destructive"
+              variant={isHolding ? "default" : "destructive"} // Change color while holding
               size="sm"
               onClick={(e) => {
+                cancelHold(); // Ensure clean state
+
                 // If long press was ready (held long enough), trigger quick send
                 if (isLongPressReady.current) {
                   handleQuickSend();
@@ -1164,9 +1174,9 @@ export default function SafeRoute() {
               onPointerLeave={cancelHold}
               onContextMenu={(e) => e.preventDefault()}
               title="SOS - Hold for quick send"
-              className="text-xs xl:text-sm select-none touch-none"
+              className={`text-xs xl:text-sm select-none touch-none transition-all duration-200 ${isHolding ? 'scale-110 font-bold' : ''}`}
             >
-              SOS
+              {isHolding ? "HOLD..." : "SOS"}
             </Button>
           </div>
         </div>
