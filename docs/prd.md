@@ -144,7 +144,7 @@ Single-page scrollable website with clear sections
 
 ### 6.1 API Integration
 \n#### 6.1.1 Google Maps API
-- **API Key**: AIzaSyDWS4pnDGpzZcTDS5dXJUcgxZBmXsMfeeA
+- **API Key**:
 - **Services Used**:
   - Google Maps JavaScript API for map rendering\n  - Google Places API for location autocomplete in start location and destination fields
   - Google Routes API for retrieving route data
@@ -152,7 +152,7 @@ Single-page scrollable website with clear sections
   - Google Maps Directions API for turn-by-turn navigation guidance
 
 #### 6.1.2 Gemini AI Integration
-- **API Key**: AIzaSyCo3cnR4Yk0cx4yHqK2_T699cZmsc_TRGg\n- **Purpose**: Generate three route options with safety analysis\n- **Input Data**:
+- **API Key**: - **Purpose**: Generate three route options with safety analysis\n- **Input Data**:
   - Origin coordinates (start location)
   - Destination coordinates
   - Departure time (selected travel time)
