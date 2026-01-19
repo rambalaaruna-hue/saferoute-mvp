@@ -1,9 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import { countryCodes, getCountryFlag } from '../data/countryCodes';
-import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart, ChevronDown } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { LocationAutocomplete } from '@/components/LocationAutocomplete';
+import { Shield, MapPin, Clock, AlertCircle, Users, Sparkles, Loader2, Navigation, Car, Bike, Bus, Footprints, CheckCircle2, XCircle, MapPinned, Eye, Star, Send, Heart } from 'lucide-react';
 import { StarRating, SafetyScoreSlider } from '@/components/StarRating';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,16 +34,11 @@ import { MockMap } from '@/components/MockMap';
 
 // ============== SOS FEATURE TYPES AND CONSTANTS ==============
 type SosSettings = {
-  policeCode: string;
-  policeNumber: string;
-  ambulanceCode: string;
-  ambulanceNumber: string;
-  whatsapp1Code: string;
-  whatsapp1Number: string;
-  whatsapp2Code: string;
-  whatsapp2Number: string;
-  whatsapp3Code: string;
-  whatsapp3Number: string;
+  police: string;
+  ambulance: string;
+  whatsapp1: string;
+  whatsapp2: string;
+  whatsapp3: string;
   email1: string;
   email2: string;
   email3: string;
@@ -61,21 +52,16 @@ type SosSettings = {
 const SOS_SETTINGS_KEY = 'sos_settings';
 
 const DEFAULT_SOS_SETTINGS: SosSettings = {
-  policeCode: '91',
-  policeNumber: '100',
-  ambulanceCode: '91',
-  ambulanceNumber: '102',
-  whatsapp1Code: '91',
-  whatsapp1Number: '',
-  whatsapp2Code: '91',
-  whatsapp2Number: '',
-  whatsapp3Code: '91',
-  whatsapp3Number: '',
+  police: '100',
+  ambulance: '102',
+  whatsapp1: '',
+  whatsapp2: '',
+  whatsapp3: '',
   email1: '',
   email2: '',
   email3: '',
   messageTemplate: 'Emergency! I need help. My location: {maps}',
-  enableQuickSend: true,
+  enableQuickSend: false,
   holdDuration: 1500,
   useNominatim: false,
   nominatimEmail: ''
@@ -123,58 +109,14 @@ export default function SafeRoute() {
   // SOS Feature State
   const [sosSettings, setSosSettings] = useState<SosSettings>(() => {
     const savedSettings = localStorage.getItem(SOS_SETTINGS_KEY);
-    if (!savedSettings) return DEFAULT_SOS_SETTINGS;
-
-    try {
-      const parsed = JSON.parse(savedSettings);
-
-      // Migration check: if old keys exist but new keys don't, migrate them
-      // Simple migration: If 'police' is string, split it or default
-      if ('police' in parsed && typeof parsed.police === 'string' && !parsed.policeCode) {
-        // Migration helper
-        const migrate = (oldVal: string | undefined) => {
-          if (!oldVal) return { code: '91', number: '' };
-          // If starts with 91 and length > 4, assume it was a formatted number
-          if (oldVal.startsWith('91') && oldVal.length > 4) {
-            return { code: '91', number: oldVal.slice(2) };
-          }
-          return { code: '91', number: oldVal };
-        };
-
-        const police = migrate(parsed.police);
-        const ambulance = migrate(parsed.ambulance);
-        const wa1 = migrate(parsed.whatsapp1);
-        const wa2 = migrate(parsed.whatsapp2);
-        const wa3 = migrate(parsed.whatsapp3);
-
-        return {
-          ...DEFAULT_SOS_SETTINGS, // Ensure all new fields exist
-          ...parsed, // Keep other existing settings like messageTemplate
-          policeCode: police.code,
-          policeNumber: police.number,
-          ambulanceCode: ambulance.code,
-          ambulanceNumber: ambulance.number,
-          whatsapp1Code: wa1.code,
-          whatsapp1Number: wa1.number,
-          whatsapp2Code: wa2.code,
-          whatsapp2Number: wa2.number,
-          whatsapp3Code: wa3.code,
-          whatsapp3Number: wa3.number,
-        };
-      }
-
-      // If already migrated or fresh, just return parsed (merged with defaults for safety)
-      // FIX: Force enableQuickSend to be true even if saved as false (user request)
-      return { ...DEFAULT_SOS_SETTINGS, ...parsed, enableQuickSend: true };
-    } catch (e) {
-      return DEFAULT_SOS_SETTINGS;
-    }
+    return savedSettings ? JSON.parse(savedSettings) : DEFAULT_SOS_SETTINGS;
   });
   const [lastCoords, setLastCoords] = useState<GeolocationCoordinates | null>(null);
   const [lastAddress, setLastAddress] = useState<string | null>(null);
   const [sosMenuOpen, setSosMenuOpen] = useState(false);
   const [sosSettingsOpen, setSosSettingsOpen] = useState(false);
-  const [isScoreBreakdownOpen, setIsScoreBreakdownOpen] = useState(false);
+  const holdTimerRef = useRef<number | null>(null);
+
   const mapSectionRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -756,11 +698,9 @@ export default function SafeRoute() {
   }
 
   function getWhatsappNumbers(): string[] {
-    const w1 = sosSettings.whatsapp1Number ? (sosSettings.whatsapp1Code + sosSettings.whatsapp1Number).replace(/\D/g, '') : '';
-    const w2 = sosSettings.whatsapp2Number ? (sosSettings.whatsapp2Code + sosSettings.whatsapp2Number).replace(/\D/g, '') : '';
-    const w3 = sosSettings.whatsapp3Number ? (sosSettings.whatsapp3Code + sosSettings.whatsapp3Number).replace(/\D/g, '') : '';
-
-    return [w1, w2, w3].filter(Boolean);
+    return [sosSettings.whatsapp1, sosSettings.whatsapp2, sosSettings.whatsapp3]
+      .map(s => s?.trim().replace(/\D/g, ''))
+      .filter(Boolean);
   }
 
   function getEmails(): string[] {
@@ -901,19 +841,19 @@ export default function SafeRoute() {
     }
 
     if (tempWin) tempWin.close();
-    if (sosSettings.policeNumber) {
-      openDial(sosSettings.policeCode + sosSettings.policeNumber);
+    if (sosSettings.police) {
+      openDial(sosSettings.police);
       return;
     }
     alert('No quick action configured (set Emergency WhatsApp or Police number in Settings).');
   }
 
   function actionCallPolice() {
-    openDial(sosSettings.policeCode + sosSettings.policeNumber);
+    openDial(sosSettings.police);
   }
 
   function actionCallAmbulance() {
-    openDial(sosSettings.ambulanceCode + sosSettings.ambulanceNumber);
+    openDial(sosSettings.ambulance);
   }
 
   async function actionWhatsApp(specificNumber?: string) {
@@ -1061,7 +1001,21 @@ export default function SafeRoute() {
     window.open(mapsLink(lastCoords.latitude, lastCoords.longitude), '_blank');
   }
 
-  // Hold feature removed by user request - reverting to simple click logic
+  // hold-to-quick-send helpers
+  const startHold = () => {
+    if (!sosSettings.enableQuickSend) return;
+    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = window.setTimeout(() => {
+      handleQuickSend();
+    }, sosSettings.holdDuration || DEFAULT_SOS_SETTINGS.holdDuration);
+  };
+
+  const cancelHold = () => {
+    if (holdTimerRef.current) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
 
   function handleSosSettingsChange<K extends keyof SosSettings>(key: K, value: SosSettings[K]) {
     const updatedSettings = { ...sosSettings, [key]: value };
@@ -1111,7 +1065,11 @@ export default function SafeRoute() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => handleSosClick()}
+              onClick={() => { handleSosClick(); }}
+              onPointerDown={startHold}
+              onPointerUp={cancelHold}
+              onPointerLeave={cancelHold}
+              title="SOS - Hold for quick send"
               className="text-xs xl:text-sm"
             >
               SOS
@@ -1158,12 +1116,12 @@ export default function SafeRoute() {
                   Start Location
                 </Label>
                 <div className="flex gap-2">
-                  <LocationAutocomplete
+                  <Input
+                    id="start"
                     value={startLocation}
-                    onChange={setStartLocation}
-                    onSelect={(data) => setStartLocation(data.address)}
+                    onChange={(e) => setStartLocation(e.target.value)}
                     placeholder="Your current location"
-                    className="flex-1"
+                    className="bg-input border-border text-sm xl:text-base flex-1"
                   />
                   <Button
                     type="button"
@@ -1187,11 +1145,12 @@ export default function SafeRoute() {
                   <MapPin className="w-4 h-4" />
                   Destination
                 </Label>
-                <LocationAutocomplete
+                <Input
+                  id="destination"
                   value={destination}
-                  onChange={setDestination}
-                  onSelect={(data) => setDestination(data.address)}
+                  onChange={(e) => setDestination(e.target.value)}
                   placeholder="Enter destination"
+                  className="bg-input border-border text-sm xl:text-base"
                 />
               </div>
 
@@ -1335,237 +1294,219 @@ export default function SafeRoute() {
               </div>
             </CardHeader>
             <CardContent>
-              <Collapsible
-                open={isScoreBreakdownOpen}
-                onOpenChange={setIsScoreBreakdownOpen}
-                className="space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Click to view detailed factor analysis
-                  </p>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-9 p-0">
-                      <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isScoreBreakdownOpen ? "rotate-180" : "")} />
-                      <span className="sr-only">Toggle breakdown</span>
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
+              <div className="space-y-4">
+                {/* Score Calculation Breakdown */}
+                {currentAnalysis.riskFactors && (() => {
+                  const rf = currentAnalysis.riskFactors;
 
-                <CollapsibleContent className="space-y-4">
-                  {/* Score Calculation Breakdown */}
-                  {currentAnalysis.riskFactors && (() => {
-                    const rf = currentAnalysis.riskFactors;
+                  // Get selected hour for display
+                  const selectedHour = parseInt(travelTime.split(':')[0], 10);
+                  const timeLabel = selectedHour >= 22 || selectedHour <= 5
+                    ? `Late night (${travelTime})`
+                    : selectedHour >= 19 || selectedHour <= 7
+                      ? `Evening/morning (${travelTime})`
+                      : `Daytime (${travelTime})`;
 
-                    // Get selected hour for display
-                    const selectedHour = parseInt(travelTime.split(':')[0], 10);
-                    const timeLabel = selectedHour >= 22 || selectedHour <= 5
-                      ? `Late night (${travelTime})`
-                      : selectedHour >= 19 || selectedHour <= 7
-                        ? `Evening/morning (${travelTime})`
-                        : `Daytime (${travelTime})`;
+                  // Calculate actual points for each factor (points = (1 - risk) * weight * 100)
+                  const factors = [
+                    {
+                      name: 'Crime Risk',
+                      emoji: '🚨',
+                      weight: 25,
+                      risk: rf.crimeRisk,
+                      points: Math.round((1 - rf.crimeRisk) * 25),
+                      description: rf.crimeRisk <= 0.3 ? 'Low crime area' : rf.crimeRisk <= 0.6 ? 'Moderate crime area' : 'Higher crime area'
+                    },
+                    {
+                      name: 'Lighting',
+                      emoji: '💡',
+                      weight: 15,
+                      risk: rf.lightingRisk,
+                      points: Math.round((1 - rf.lightingRisk) * 15),
+                      description: rf.lightingRisk <= 0.3 ? 'Well-lit streets' : rf.lightingRisk <= 0.6 ? 'Partially lit' : 'Limited lighting'
+                    },
+                    {
+                      name: 'Time of Day',
+                      emoji: '🌙',
+                      weight: 15,
+                      risk: rf.timeRisk,
+                      points: Math.round((1 - rf.timeRisk) * 15),
+                      description: timeLabel
+                    },
+                    {
+                      name: 'Road Type',
+                      emoji: '🛣️',
+                      weight: 10,
+                      risk: rf.roadTypeRisk,
+                      points: Math.round((1 - rf.roadTypeRisk) * 10),
+                      description: rf.roadTypeRisk <= 0.4 ? 'Main roads/highways' : rf.roadTypeRisk <= 0.6 ? 'Residential streets' : 'Narrow lanes/alleys'
+                    },
+                    {
+                      name: 'Distance',
+                      emoji: '📏',
+                      weight: 10,
+                      risk: rf.distanceRisk,
+                      points: Math.round((1 - rf.distanceRisk) * 10),
+                      description: rf.distanceRisk <= 0.3 ? 'Short distance (<3km)' : rf.distanceRisk <= 0.6 ? 'Moderate distance' : 'Long distance (>6km)'
+                    },
+                    {
+                      name: 'Duration',
+                      emoji: '⏱️',
+                      weight: 10,
+                      risk: rf.durationRisk,
+                      points: Math.round((1 - rf.durationRisk) * 10),
+                      description: rf.durationRisk <= 0.3 ? 'Quick trip (<10min)' : rf.durationRisk <= 0.6 ? 'Moderate duration' : 'Long duration (>20min)'
+                    },
+                    {
+                      name: 'Weather',
+                      emoji: '🌦️',
+                      weight: 10,
+                      risk: rf.weatherRisk,
+                      points: Math.round((1 - rf.weatherRisk) * 10),
+                      description: rf.weatherRisk <= 0.3 ? 'Clear weather' : rf.weatherRisk <= 0.6 ? 'Cloudy/light rain' : 'Poor visibility'
+                    },
+                    {
+                      name: 'Route Complexity',
+                      emoji: '🔄',
+                      weight: 5,
+                      risk: rf.turnRisk,
+                      points: Math.round((1 - rf.turnRisk) * 5),
+                      description: rf.turnRisk <= 0.3 ? 'Straightforward route' : rf.turnRisk <= 0.6 ? 'Some turns' : 'Complex route'
+                    },
+                  ];
 
-                    // Calculate actual points for each factor (points = (1 - risk) * weight * 100)
-                    const factors = [
-                      {
-                        name: 'Crime Risk',
-                        emoji: '🚨',
-                        weight: 25,
-                        risk: rf.crimeRisk,
-                        points: Math.round((1 - rf.crimeRisk) * 25),
-                        description: rf.crimeRisk <= 0.3 ? 'Low crime area' : rf.crimeRisk <= 0.6 ? 'Moderate crime area' : 'Higher crime area'
-                      },
-                      {
-                        name: 'Lighting',
-                        emoji: '💡',
-                        weight: 15,
-                        risk: rf.lightingRisk,
-                        points: Math.round((1 - rf.lightingRisk) * 15),
-                        description: rf.lightingRisk <= 0.3 ? 'Well-lit streets' : rf.lightingRisk <= 0.6 ? 'Partially lit' : 'Limited lighting'
-                      },
-                      {
-                        name: 'Time of Day',
-                        emoji: '🌙',
-                        weight: 15,
-                        risk: rf.timeRisk,
-                        points: Math.round((1 - rf.timeRisk) * 15),
-                        description: timeLabel
-                      },
-                      {
-                        name: 'Road Type',
-                        emoji: '🛣️',
-                        weight: 10,
-                        risk: rf.roadTypeRisk,
-                        points: Math.round((1 - rf.roadTypeRisk) * 10),
-                        description: rf.roadTypeRisk <= 0.4 ? 'Main roads/highways' : rf.roadTypeRisk <= 0.6 ? 'Residential streets' : 'Narrow lanes/alleys'
-                      },
-                      {
-                        name: 'Distance',
-                        emoji: '📏',
-                        weight: 10,
-                        risk: rf.distanceRisk,
-                        points: Math.round((1 - rf.distanceRisk) * 10),
-                        description: rf.distanceRisk <= 0.3 ? 'Short distance (<3km)' : rf.distanceRisk <= 0.6 ? 'Moderate distance' : 'Long distance (>6km)'
-                      },
-                      {
-                        name: 'Duration',
-                        emoji: '⏱️',
-                        weight: 10,
-                        risk: rf.durationRisk,
-                        points: Math.round((1 - rf.durationRisk) * 10),
-                        description: rf.durationRisk <= 0.3 ? 'Quick trip (<10min)' : rf.durationRisk <= 0.6 ? 'Moderate duration' : 'Long duration (>20min)'
-                      },
-                      {
-                        name: 'Weather',
-                        emoji: '🌦️',
-                        weight: 10,
-                        risk: rf.weatherRisk,
-                        points: Math.round((1 - rf.weatherRisk) * 10),
-                        description: rf.weatherRisk <= 0.3 ? 'Clear weather' : rf.weatherRisk <= 0.6 ? 'Cloudy/light rain' : 'Poor visibility'
-                      },
-                      {
-                        name: 'Route Complexity',
-                        emoji: '🔄',
-                        weight: 5,
-                        risk: rf.turnRisk,
-                        points: Math.round((1 - rf.turnRisk) * 5),
-                        description: rf.turnRisk <= 0.3 ? 'Straightforward route' : rf.turnRisk <= 0.6 ? 'Some turns' : 'Complex route'
-                      },
-                    ];
+                  const totalPoints = factors.reduce((sum, f) => sum + f.points, 0);
 
-                    const totalPoints = factors.reduce((sum, f) => sum + f.points, 0);
-
-                    return (
-                      <div className="space-y-4 pt-2">
-                        {/* Total Score Summary */}
-                        <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
-                          <h4 className="font-semibold text-base xl:text-lg mb-2 flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-primary" />
-                            Total Score Calculation
-                          </h4>
-                          <div className="flex flex-wrap gap-2 text-sm">
-                            {factors.map((f, i) => (
-                              <span key={f.name} className="inline-flex items-center">
-                                <span className={`font-bold ${f.points >= f.weight * 0.7 ? 'text-green-400' : f.points >= f.weight * 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                  {f.points}
-                                </span>
-                                {i < factors.length - 1 && <span className="text-muted-foreground mx-1">+</span>}
-                              </span>
-                            ))}
-                            <span className="text-muted-foreground mx-1">=</span>
-                            <span className="font-bold text-primary text-base">{totalPoints} points</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Raw score: {totalPoints}/100 → Relative score: {currentAnalysis.safetyScore}/100 (adjusted based on route comparison)
-                          </p>
-                        </div>
-
-                        {/* Individual Factor Breakdown */}
-                        <h4 className="font-medium text-sm xl:text-base flex items-center gap-2 pt-2">
-                          <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                          Factor-by-Factor Breakdown
+                  return (
+                    <div className="space-y-4">
+                      {/* Total Score Summary */}
+                      <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                        <h4 className="font-semibold text-base xl:text-lg mb-2 flex items-center gap-2">
+                          <Shield className="w-5 h-5 text-primary" />
+                          Total Score Calculation
                         </h4>
+                        <div className="flex flex-wrap gap-2 text-sm">
+                          {factors.map((f, i) => (
+                            <span key={f.name} className="inline-flex items-center">
+                              <span className={`font-bold ${f.points >= f.weight * 0.7 ? 'text-green-400' : f.points >= f.weight * 0.4 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                {f.points}
+                              </span>
+                              {i < factors.length - 1 && <span className="text-muted-foreground mx-1">+</span>}
+                            </span>
+                          ))}
+                          <span className="text-muted-foreground mx-1">=</span>
+                          <span className="font-bold text-primary text-base">{totalPoints} points</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Raw score: {totalPoints}/100 → Relative score: {currentAnalysis.safetyScore}/100 (adjusted based on route comparison)
+                        </p>
+                      </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {factors.map((factor) => {
-                            const percentage = (factor.points / factor.weight) * 100;
-                            const colorClass = percentage >= 70 ? 'text-green-400' : percentage >= 40 ? 'text-yellow-400' : 'text-red-400';
-                            const bgColorClass = percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+                      {/* Individual Factor Breakdown */}
+                      <h4 className="font-medium text-sm xl:text-base flex items-center gap-2 pt-2">
+                        <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                        Factor-by-Factor Breakdown
+                      </h4>
 
-                            return (
-                              <div key={factor.name} className="bg-secondary/50 rounded-lg p-3">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="text-xs xl:text-sm font-medium">
-                                    {factor.emoji} {factor.name}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {factors.map((factor) => {
+                          const percentage = (factor.points / factor.weight) * 100;
+                          const colorClass = percentage >= 70 ? 'text-green-400' : percentage >= 40 ? 'text-yellow-400' : 'text-red-400';
+                          const bgColorClass = percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+
+                          return (
+                            <div key={factor.name} className="bg-secondary/50 rounded-lg p-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs xl:text-sm font-medium">
+                                  {factor.emoji} {factor.name}
+                                </span>
+                                <div className="text-right">
+                                  <span className={`text-sm xl:text-base font-bold ${colorClass}`}>
+                                    {factor.points}/{factor.weight}
                                   </span>
-                                  <div className="text-right">
-                                    <span className={`text-sm xl:text-base font-bold ${colorClass}`}>
-                                      {factor.points}/{factor.weight}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground ml-1">pts</span>
-                                  </div>
-                                </div>
-
-                                {/* Progress bar */}
-                                <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
-                                  <div
-                                    className={`h-2.5 rounded-full ${bgColorClass} transition-all`}
-                                    style={{ width: `${percentage}%` }}
-                                  />
-                                </div>
-
-                                {/* Description and weight info */}
-                                <div className="flex justify-between items-center">
-                                  <span className="text-xs text-muted-foreground">
-                                    {factor.description}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    Weight: {factor.weight}%
-                                  </span>
+                                  <span className="text-xs text-muted-foreground ml-1">pts</span>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
 
-                        {/* Color Legend */}
-                        <div className="flex flex-wrap items-center gap-4 pt-2 text-xs">
-                          <span className="text-muted-foreground font-medium">Score Guide:</span>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className="text-muted-foreground">70%+ of max points (Good)</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <span className="text-muted-foreground">40-69% (Moderate)</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <span className="text-muted-foreground">&lt;40% (Needs attention)</span>
-                          </div>
+                              {/* Progress bar */}
+                              <div className="w-full bg-gray-700 rounded-full h-2.5 mb-2">
+                                <div
+                                  className={`h-2.5 rounded-full ${bgColorClass} transition-all`}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+
+                              {/* Description and weight info */}
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-muted-foreground">
+                                  {factor.description}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  Weight: {factor.weight}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Color Legend */}
+                      <div className="flex flex-wrap items-center gap-4 pt-2 text-xs">
+                        <span className="text-muted-foreground font-medium">Score Guide:</span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                          <span className="text-muted-foreground">70%+ of max points (Good)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                          <span className="text-muted-foreground">40-69% (Moderate)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                          <span className="text-muted-foreground">&lt;40% (Needs attention)</span>
                         </div>
                       </div>
-                    );
-                  })()}
-
-                  {/* Key Highlights */}
-                  {currentAnalysis.highlights && currentAnalysis.highlights.length > 0 && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                      <h4 className="font-medium text-sm xl:text-base">Key Highlights:</h4>
-                      <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                        {currentAnalysis.highlights.map((highlight, index) => (
-                          <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
-                            <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                            {highlight}
-                          </li>
-                        ))}
-                      </ul>
                     </div>
-                  )}
+                  );
+                })()}
 
-                  {/* Recommendations */}
-                  {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                      <h4 className="font-medium text-sm xl:text-base">Safety Recommendations:</h4>
-                      <ul className="space-y-1">
-                        {currentAnalysis.recommendations.map((rec, index) => (
-                          <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
-                            <div className="w-1.5 h-1.5 bg-accent rounded-full" />
-                            {rec}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    <span className="text-xs xl:text-sm text-muted-foreground">
-                      Transparency first: Every point is calculated and shown • Final score is relative to available alternatives
-                    </span>
+                {/* Key Highlights */}
+                {currentAnalysis.highlights && currentAnalysis.highlights.length > 0 && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <h4 className="font-medium text-sm xl:text-base">Key Highlights:</h4>
+                    <ul className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                      {currentAnalysis.highlights.map((highlight, index) => (
+                        <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
+                          <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                          {highlight}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </CollapsibleContent>
-              </Collapsible>
+                )}
+
+                {/* Recommendations */}
+                {currentAnalysis.recommendations && currentAnalysis.recommendations.length > 0 && (
+                  <div className="space-y-2 pt-4 border-t border-border">
+                    <h4 className="font-medium text-sm xl:text-base">Safety Recommendations:</h4>
+                    <ul className="space-y-1">
+                      {currentAnalysis.recommendations.map((rec, index) => (
+                        <li key={index} className="flex items-center gap-2 text-muted-foreground text-sm xl:text-base">
+                          <div className="w-1.5 h-1.5 bg-accent rounded-full" />
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-xs xl:text-sm text-muted-foreground">
+                    Transparency first: Every point is calculated and shown • Final score is relative to available alternatives
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -2377,46 +2318,43 @@ export default function SafeRoute() {
           <div className="space-y-4 py-4">
             {/* Helper for rendering phone inputs with country code */}
             {(() => {
-              const renderPhoneInput = (label: string, codeField: keyof SosSettings, numberField: keyof SosSettings, placeholder: string) => {
-                const code = sosSettings[codeField] as string;
-                const number = sosSettings[numberField] as string;
+              const renderPhoneInput = (label: string, field: keyof SosSettings, placeholder: string) => {
+                const fullValue = sosSettings[field] as string || '';
+                let code = '91';
+                let number = fullValue;
+
+                // Simple heuristic to split existing numbers
+                if (fullValue.startsWith('91') && fullValue.length > 5) {
+                  code = '91';
+                  number = fullValue.slice(2);
+                } else if (fullValue.length > 0 && !fullValue.startsWith('91')) {
+                  // If it doesn't start with 91, keep it all in number for safety, defaulting code to 91
+                  number = fullValue;
+                }
 
                 return (
                   <div className="space-y-1">
                     {label && <Label>{label}</Label>}
                     <div className="flex gap-2">
-                      {/* Country Code Dropdown */}
-                      <div className="w-32 flex-shrink-0">
-                        <Select
+                      {/* Country Code */}
+                      <div className="w-20 flex-shrink-0">
+                        <Input
                           value={code}
-                          onValueChange={(value) => handleSosSettingsChange(codeField, value)}
-                        >
-                          <SelectTrigger className="w-full text-center px-2">
-                            <SelectValue placeholder="Code">
-                              {code ? `${getCountryFlag(code)} +${code}` : 'Code'}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="max-h-[200px]">
-                            {countryCodes.map((c) => (
-                              <SelectItem key={c.iso} value={c.code}>
-                                <span className="flex items-center gap-2">
-                                  <span className="text-lg">{c.flag}</span>
-                                  <span className="text-muted-foreground text-xs">{c.name}</span>
-                                  <span className="font-mono ml-auto">+{c.code}</span>
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onChange={(e) => {
+                            const newCode = e.target.value.replace(/\D/g, '');
+                            handleSosSettingsChange(field, newCode + number);
+                          }}
+                          placeholder="Code"
+                          className="text-center"
+                        />
                       </div>
-
-                      {/* Phone Number - Plain typing box */}
+                      {/* Phone Number */}
                       <div className="flex-1">
                         <Input
                           value={number}
                           onChange={(e) => {
-                            // Strictly plain text to avoid loop bugs
-                            handleSosSettingsChange(numberField, e.target.value);
+                            const newNumber = e.target.value.replace(/\D/g, '');
+                            handleSosSettingsChange(field, code + newNumber); // Always unite with current/default code
                           }}
                           placeholder={placeholder}
                         />
@@ -2428,16 +2366,16 @@ export default function SafeRoute() {
 
               return (
                 <>
-                  {renderPhoneInput('Police phone number', 'policeCode', 'policeNumber', 'e.g. 100')}
-                  {renderPhoneInput('Ambulance phone number', 'ambulanceCode', 'ambulanceNumber', 'e.g. 102')}
+                  {renderPhoneInput('Police phone number', 'police', 'e.g. 100')}
+                  {renderPhoneInput('Ambulance phone number', 'ambulance', 'e.g. 102')}
 
                   <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
                     <div className="font-medium text-sm">Emergency WhatsApp Numbers</div>
-                    <div className="text-xs text-muted-foreground">Select country code & type number. Supports international numbers.</div>
+                    <div className="text-xs text-muted-foreground">Country code + Number required. We auto-add the code for you.</div>
 
-                    {renderPhoneInput('', 'whatsapp1Code', 'whatsapp1Number', 'WhatsApp 1 (required)')}
-                    {renderPhoneInput('', 'whatsapp2Code', 'whatsapp2Number', 'WhatsApp 2 (optional)')}
-                    {renderPhoneInput('', 'whatsapp3Code', 'whatsapp3Number', 'WhatsApp 3 (optional)')}
+                    {renderPhoneInput('', 'whatsapp1', 'WhatsApp 1 (required)')}
+                    {renderPhoneInput('', 'whatsapp2', 'WhatsApp 2 (optional)')}
+                    {renderPhoneInput('', 'whatsapp3', 'WhatsApp 3 (optional)')}
                   </div>
                 </>
               );
