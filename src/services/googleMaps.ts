@@ -14,6 +14,7 @@ export interface RouteData {
   safetyScore: number;
   color: string;
   polyline: string;
+  coordinates?: [number, number][];
   legs: google.maps.DirectionsLeg[];
   warnings: string[];
   summary: string;

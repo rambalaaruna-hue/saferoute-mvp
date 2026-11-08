@@ -1,3 +1,7 @@
+allowBuilds:
+  '@firebase/util': false
+  esbuild: false
+  protobufjs: false
 catalog:
   '@react-three/drei': 9.122.0
   '@react-three/fiber': 8.18.0

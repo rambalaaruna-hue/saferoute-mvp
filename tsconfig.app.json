@@ -23,10 +23,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    },
+  "@/*": ["./src/*"]
+},
     "typeRoots": ["./node_modules/**/*"]
   },
   "include": ["src"]

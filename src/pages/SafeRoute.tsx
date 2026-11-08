@@ -31,6 +31,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { NavigationDialog } from '@/components/NavigationDialog';
 import { MockMap } from '@/components/MockMap';
+import { OpenStreetMapView } from '@/components/OpenStreetMapView';
+import { openStreetMapService } from '@/services/openStreetMap';
 
 // ============== SOS FEATURE TYPES AND CONSTANTS ==============
 type SosSettings = {
@@ -66,6 +68,40 @@ const DEFAULT_SOS_SETTINGS: SosSettings = {
   useNominatim: false,
   nominatimEmail: ''
 };
+interface LocationSuggestion {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+async function searchLocations(
+  query: string
+): Promise<LocationSuggestion[]> {
+  if (query.trim().length < 3) {
+    return [];
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q: query.trim(),
+      format: 'jsonv2',
+      limit: '5',
+    });
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`
+    );
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return (await response.json()) as LocationSuggestion[];
+  } catch (error) {
+    console.error('Location search failed:', error);
+    return [];
+  }
+}
 
 export default function SafeRoute() {
   const [selectedRoute, setSelectedRoute] = useState<RouteData | null>(null);
@@ -74,6 +110,28 @@ export default function SafeRoute() {
   const [showSOS, setShowSOS] = useState(false);
   const [startLocation, setStartLocation] = useState('');
   const [destination, setDestination] = useState('');
+  const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [activeSuggestionField, setActiveSuggestionField] = useState<'start' | 'destination' | null>(null);
+  useEffect(() => {
+  if (activeSuggestionField === 'start') {
+    const timer = setTimeout(async () => {
+      const results = await searchLocations(startLocation);
+      setStartSuggestions(results);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }
+
+  if (activeSuggestionField === 'destination') {
+    const timer = setTimeout(async () => {
+      const results = await searchLocations(destination);
+      setDestinationSuggestions(results);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }
+}, [startLocation, destination, activeSuggestionField]);
   const [travelTime, setTravelTime] = useState('21:00');
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackType, setFeedbackType] = useState<'safe' | 'unsafe' | null>(null);
@@ -236,51 +294,11 @@ export default function SafeRoute() {
     try {
       let fetchedRoutes: RouteData[];
 
-      if (useDemoMode) {
-        // Use mock service in demo mode
-        const mockRoutes = await mockGoogleMapsService.calculateRoutes(startLocation, destination, travelMode);
-        // Convert mock routes to RouteData format
-        fetchedRoutes = mockRoutes.map((route: MockRouteData, index: number) => ({
-          id: route.id,
-          name: route.name,
-          distance: route.distance,
-          duration: route.duration,
-          safetyScore: route.safetyScore,
-          polyline: route.polyline,
-          steps: route.steps as any, // Mock steps compatible with navigation
-          type: (index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest') as 'safe' | 'balanced' | 'fastest',
-          color: route.safetyScore >= 85 ? '#2EC4B6' : route.safetyScore >= 70 ? '#F4D35E' : '#999999',
-          legs: [],
-          warnings: [],
-          summary: route.name
-        }));
-      } else {
-        // Ensure map is initialized before fetching routes
-        if (!mapInitialized) {
-          console.log('🗺️ Map not initialized, initializing now...');
-          await initializeMap();
-        }
-
-        // Fetch routes from Google Maps
-        fetchedRoutes = await googleMapsService.getRoutes(
-          startLocation,
-          destination,
-          travelTime,
-          travelMode
-        );
-
-        // If Google Maps returns fewer than 3 routes, we still show what we have
-        // We DON'T create fake duplicates - that would be misleading
-        // Google Maps returns alternative routes only when they are genuinely different
-        console.log(`📍 Google Maps returned ${fetchedRoutes.length} route(s)`);
-
-        // Rename routes based on their position if needed
-        fetchedRoutes = fetchedRoutes.map((route, index) => ({
-          ...route,
-          name: index === 0 ? 'Recommended Route' : index === 1 ? 'Alternative Route' : 'Quick Route',
-          type: (index === 0 ? 'safe' : index === 1 ? 'balanced' : 'fastest') as 'safe' | 'balanced' | 'fastest'
-        }));
-      }
+      fetchedRoutes = await openStreetMapService.getRoutes(
+  startLocation,
+  destination,
+  travelMode
+);
 
       if (fetchedRoutes.length === 0) {
         throw new Error('No routes found');
@@ -330,14 +348,101 @@ export default function SafeRoute() {
       console.log('🛡️ Safety scores calculated:', safetyResults.map(r => ({ id: r.routeId, score: r.safetyScore })));
 
       // Update routes with calculated safety scores
-      const scoredRoutes = fetchedRoutes.map((route, index) => {
-        const result = safetyResults[index];
-        return {
-          ...route,
-          safetyScore: result.safetyScore,
-          name: index === 0 ? 'Recommended Route' : index === 1 ? 'Alternative Route' : 'Quick Route',
-        };
-      });
+
+// Add calculated safety scores to each route
+const routesWithScores = fetchedRoutes.map((route, index) => ({
+  ...route,
+  safetyScore: safetyResults[index]?.safetyScore ?? 0,
+}));
+
+// Convert formatted travel time into minutes for comparison
+const getDurationMinutes = (duration: string): number => {
+  const hours = Number(
+    duration.match(/(\d+)\s*hr/i)?.[1] ?? 0
+  );
+
+  const minutes = Number(
+    duration.match(/(\d+)\s*min/i)?.[1] ?? 0
+  );
+
+  return hours * 60 + minutes;
+};
+
+// Find the route with the highest safety score
+const safestIndex = routesWithScores.reduce(
+  (bestIndex, route, index, allRoutes) =>
+    route.safetyScore > allRoutes[bestIndex].safetyScore
+      ? index
+      : bestIndex,
+  0
+);
+
+// Find the route with the shortest estimated travel time
+const fastestIndex = routesWithScores.reduce(
+  (bestIndex, route, index, allRoutes) =>
+    getDurationMinutes(route.duration) <
+    getDurationMinutes(allRoutes[bestIndex].duration)
+      ? index
+      : bestIndex,
+  0
+);
+
+// Give each route an appropriate name and colour
+// Rank routes by their calculated safety scores
+const safetyOrderedRoutes = [...routesWithScores].sort(
+  (a, b) => b.safetyScore - a.safetyScore
+);
+
+let alternativeCounter = 0;
+
+// Assign names and colours to routes
+const scoredRoutes = routesWithScores.map((route, index) => {
+  const isSafest = index === safestIndex;
+  const isFastest = index === fastestIndex;
+
+  // Find this route's position in the safety ranking
+  const safetyRank = safetyOrderedRoutes.findIndex(
+    (safetyRoute) => safetyRoute.id === route.id
+  );
+
+  // Green = highest safety score
+  // Yellow = second-highest safety score
+  // Orange = lowest safety score
+  const color =
+    safetyRank === 0
+      ? '#16A34A'
+      : safetyRank === 1
+        ? '#FACC15'
+        : '#F97316';
+
+  let name: string;
+
+  if (isSafest && isFastest) {
+    name = 'Safest & Fastest Route';
+  } else if (isSafest) {
+    name = 'Safest Route';
+  } else if (isFastest) {
+    name = 'Fastest Route';
+  } else {
+    alternativeCounter += 1;
+    name = `Alternative Route ${alternativeCounter}`;
+  }
+
+  const type: 'safe' | 'balanced' | 'fastest' = isSafest
+    ? 'safe'
+    : isFastest
+      ? 'fastest'
+      : 'balanced';
+
+  return {
+    ...route,
+    type,
+    name,
+    color,
+  };
+});
+
+
 
       // Convert safety results to SafetyAnalysis format for UI
       const analysesMap = new Map<string, SafetyAnalysis>();
@@ -1119,7 +1224,10 @@ export default function SafeRoute() {
                   <Input
                     id="start"
                     value={startLocation}
-                    onChange={(e) => setStartLocation(e.target.value)}
+                    onChange={(e) => {
+  setStartLocation(e.target.value);
+  setActiveSuggestionField('start');
+}}
                     placeholder="Your current location"
                     className="bg-input border-border text-sm xl:text-base flex-1"
                   />
@@ -1138,6 +1246,24 @@ export default function SafeRoute() {
                     )}
                   </Button>
                 </div>
+                {activeSuggestionField === 'start' && startSuggestions.length > 0 && (
+  <div className="rounded-md border border-border bg-card shadow-md max-h-60 overflow-y-auto">
+    {startSuggestions.map((suggestion) => (
+      <button
+        key={suggestion.place_id}
+        type="button"
+        className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+        onClick={() => {
+          setStartLocation(suggestion.display_name);
+          setStartSuggestions([]);
+          setActiveSuggestionField(null);
+        }}
+      >
+        {suggestion.display_name}
+      </button>
+    ))}
+  </div>
+)}
               </div>
 
               <div className="space-y-2">
@@ -1148,10 +1274,32 @@ export default function SafeRoute() {
                 <Input
                   id="destination"
                   value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
+                  onChange={(e) => {
+  setDestination(e.target.value);
+  setActiveSuggestionField('destination');
+}}
                   placeholder="Enter destination"
                   className="bg-input border-border text-sm xl:text-base"
                 />
+                {activeSuggestionField === 'destination' &&
+  destinationSuggestions.length > 0 && (
+    <div className="rounded-md border border-border bg-card shadow-md max-h-60 overflow-y-auto">
+      {destinationSuggestions.map((suggestion) => (
+        <button
+          key={suggestion.place_id}
+          type="button"
+          className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+          onClick={() => {
+            setDestination(suggestion.display_name);
+            setDestinationSuggestions([]);
+            setActiveSuggestionField(null);
+          }}
+        >
+          {suggestion.display_name}
+        </button>
+      ))}
+    </div>
+  )}
               </div>
 
               <div className="space-y-2">
@@ -1243,15 +1391,10 @@ export default function SafeRoute() {
                   </div>
                 )}
                 {/* Map container - show MockMap in demo mode, Google Maps otherwise */}
-                {useDemoMode ? (
-                  <MockMap routes={routes} selectedRoute={selectedRoute} />
-                ) : (
-                  <div
-                    ref={mapContainerRef}
-                    className="w-full h-full"
-                    key="google-map-container"
-                  />
-                )}
+                <OpenStreetMapView
+  routes={routes}
+  selectedRoute={selectedRoute}
+/>
               </div>
             </CardContent>
           </Card>
